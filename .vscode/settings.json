@@ -24,7 +24,8 @@
         "dict.h": "c",
         "listpack.h": "c",
         "rio.h": "c",
-        "cstdlib": "c"
+        "cstdlib": "c",
+        "log.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

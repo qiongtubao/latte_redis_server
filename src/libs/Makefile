@@ -293,6 +293,9 @@ crc64.o: ./crc64/crc64.c
 rio.o: ./rio/rio.c 
 	$(LATTE_CC) -c $<
 
+log.o: ./log/log.c 
+	$(LATTE_CC) -c $<
+
 all: 
 	$(MAKE) zmalloc.o
 	$(MAKE) sds.o 
@@ -308,6 +311,7 @@ all:
 	$(MAKE) quicklist.o
 	$(MAKE) crc64.o 
 	$(MAKE) rio.o
+	$(MAKE) log.o
 	
 clean:
 	rm -rf $(LATTE_SERVER_NAME) $(LATTE_SENTINEL_NAME) $(LATTE_CLI_NAME) $(LATTE_BENCHMARK_NAME) $(LATTE_CHECK_RDB_NAME) $(LATTE_CHECK_AOF_NAME) *.o *.gcda *.gcno *.gcov LATTE.info lcov-html Makefile.dep dict-benchmark
