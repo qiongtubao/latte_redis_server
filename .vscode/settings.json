@@ -1,0 +1,30 @@
+{
+    "files.associations": {
+        "robj.h": "c",
+        "client.h": "c",
+        "latte_redis_server.h": "c",
+        "redis_command.h": "c",
+        "stdio.h": "c",
+        "zmalloc.h": "c",
+        "stdint.h": "c",
+        "assert.h": "c",
+        "util.h": "c",
+        "sds.h": "c",
+        "shared.h": "c",
+        "dlfcn.h": "c",
+        "stddef.h": "c",
+        "socket.h": "c",
+        "fstream": "c",
+        "connection.h": "c",
+        "stream.h": "c",
+        "time.h": "c",
+        "ziplist.h": "c",
+        "endianconv.h": "c",
+        "limits.h": "c",
+        "dict.h": "c",
+        "listpack.h": "c",
+        "rio.h": "c",
+        "cstdlib": "c"
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
+}

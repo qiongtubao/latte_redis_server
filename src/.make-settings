@@ -1,0 +1,10 @@
+STD=-std=c99 -pedantic -DLATTE_STATIC=
+WARN=-Wall -W -Wno-missing-field-initializers
+OPT=-O2
+MALLOC=jemalloc
+CFLAGS=
+LDFLAGS=
+LATTE_CFLAGS=
+LATTE_LDFLAGS=
+PREV_FINAL_CFLAGS=-std=c99 -pedantic -DLATTE_STATIC= -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb -pg -I./libs -DUSE_JEMALLOC -I../deps/jemalloc/include
+PREV_FINAL_LDFLAGS= -g -ggdb -pg -rdynamic
