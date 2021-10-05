@@ -1,8 +1,19 @@
 #include "redis_command.h"
 #include <dict/dict.h>
+#include "cluster.h"
+#include "atomicvar.h"
 
+//config
+#define CONFIG_DEFAULT_UNIX_SOCKET_PERM 0
+#define CONFIG_DEFAULT_BINDADDR_COUNT 2
+#define CONFIG_DEFAULT_BINDADDR { "*", "-::*" }
+#define CONFIG_DEFAULT_LOGFILE ""
+#define CONFIG_DEFAULT_CLUSTER_CONFIG_FILE "nodes.conf"
 
-
+/* Static server configuration */
+#define CONFIG_DEFAULT_HZ        10             /* Time interrupt calls/sec. */
+#define CONFIG_MIN_HZ            1
+#define CONFIG_MAX_HZ            500
 
 
 
@@ -16,8 +27,16 @@ typedef struct redisServer {
     int dynamic_hz;
     int config_hz;
 
-
+    char runid[CONFIG_RUN_ID_SIZE+1];  /* ID always different at every exec. */
+    /* time cache */
+    redisAtomic time_t unixtime; /* Unix time sampled every cron cycle. */
+    time_t timezone;            /* Cached timezone. As set by tzset(). */
+    int daylight_active;        /* Currently in daylight saving time. */
+    mstime_t mstime;            /* 'unixtime' in milliseconds. */
+    ustime_t ustime;            /* 'unixtime' in microseconds. */
+    
     mode_t umask;               /* The umask value of the process on startup */
+    int sentinel_mode;          /* True if this instance is a Sentinel. */
 } redisServer;
 
 

@@ -24,3 +24,4 @@ int string2ll(const char *s, size_t slen, long long *value) ;
 long long ustime(void);
 long long mstime(void);
 void getRandomBytes(unsigned char *p, size_t len);
+void getRandomHexChars(char *p, size_t len);

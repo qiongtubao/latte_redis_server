@@ -28,7 +28,8 @@
         "log.h": "c",
         "crc64.h": "c",
         "string.h": "c",
-        "sha256.h": "c"
+        "sha256.h": "c",
+        "atomicvar.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }
