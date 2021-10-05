@@ -17,7 +17,7 @@ typedef struct redisServer {
     int config_hz;
 
 
-
+    mode_t umask;               /* The umask value of the process on startup */
 } redisServer;
 
 
