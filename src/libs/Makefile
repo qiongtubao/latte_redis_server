@@ -248,6 +248,12 @@ sds.o: ./sds/sds.c
 util.o: ./util/util.c 
 	$(LATTE_CC) -c $<
 
+siphash.o: ./dict/siphash.c 
+	$(LATTE_CC) -c $<
+
+mt19937-64.o: ./dict/mt19937-64.c 
+	$(LATTE_CC) -c $<
+
 dict.o: ./dict/dict.c assert.o
 	$(LATTE_CC) -c $<
 
@@ -284,6 +290,12 @@ endianconv.o: ./endianconv/endianconv.c
 ziplist.o: ./ziplist/ziplist.c 
 	$(LATTE_CC) -c $<
 
+lzf_c.o: ./quicklist/lzf_c.c 
+	$(LATTE_CC) -c $<
+
+lzf_d.o: ./quicklist/lzf_d.c 
+	$(LATTE_CC) -c $<
+
 quicklist.o: ./quicklist/quicklist.c 
 	$(LATTE_CC) -c $<
 
@@ -300,6 +312,8 @@ all:
 	$(MAKE) zmalloc.o
 	$(MAKE) sds.o 
 	$(MAKE) util.o
+	$(MAKE) siphash.o
+	$(MAKE) mt19937-64.o
 	$(MAKE) dict.o
 	$(MAKE) list.o
 	$(MAKE) connection.o
@@ -308,6 +322,8 @@ all:
 	$(MAKE) listpack.o
 	$(MAKE) stream.o
 	$(MAKE) ziplist.o
+	$(MAKE) lzf_c.o 
+	$(MAKE) lzf_d.o 
 	$(MAKE) quicklist.o
 	$(MAKE) crc64.o 
 	$(MAKE) rio.o
