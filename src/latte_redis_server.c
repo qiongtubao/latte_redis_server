@@ -104,7 +104,7 @@ void initServerConfig(void) {
                                       updated later after loading the config.
                                       This value may be used before the server
                                       is initialized. */
-    // server.timezone = getTimeZone(); /* Initialized by tzset(). */
+    server.timezone = getTimeZone(); /* Initialized by tzset(). */
     // server.configfile = NULL;
     // server.executable = NULL;
     // server.arch_bits = (sizeof(long) == 8) ? 64 : 32;
