@@ -4,6 +4,10 @@
 #include <time.h>
 #include <sys/time.h>
 #include "log/log.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <crc64/crc64.h>
+
 // #include "client.h"
 struct redisServer server;
 void getCommand(client *c) {
@@ -46,5 +50,10 @@ int main(int argc, char **argv) {
     setlocale(LC_COLLATE,"");
     tzset();
     zmalloc_set_oom_handler(redisOutOfMemoryHandler);
+    srand(time(NULL)^getpid());
+    srandom(time(NULL)^getpid());
+    gettimeofday(&tv,NULL);
+    init_genrand64(((long long) tv.tv_sec * 1000000 + tv.tv_usec) ^ getpid());
+    crc64_init();
     return 1;
 }

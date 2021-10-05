@@ -31,6 +31,12 @@ static int verbosity = LL_NOTICE;
 #define	LOG_INFO	6	/* informational */
 #define	LOG_DEBUG	7	/* debug-level messages */
 
+#ifdef __GNUC__
+void _serverLog(int level, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+#else
+void _serverLog(int level, const char *fmt, ...);
+#endif
 
 /* Use macro for checking log level to avoid evaluating arguments in cases log
  * should be ignored due to low level. */

@@ -175,7 +175,7 @@ endif
 
 LATTE_SERVER_NAME=latte-redis-server
 LATTE_SERVER_OBJ=latte_redis_server.o
-LATTE_LIBS=libs/sds.o libs/zmalloc.o libs/util.o libs/list.o libs/assert.o  libs/rax.o libs/log.o libs/siphash.o libs/mt19937-64.o libs/dict.o libs/stream.o libs/lzf_c.o libs/lzf_d.o libs/quicklist.o libs/listpack.o libs/ziplist.o 
+LATTE_LIBS=libs/sds.o libs/zmalloc.o libs/util.o libs/list.o libs/assert.o  libs/rax.o libs/log.o libs/siphash.o libs/mt19937-64.o libs/dict.o libs/stream.o libs/lzf_c.o libs/lzf_d.o libs/quicklist.o libs/listpack.o libs/ziplist.o libs/crcspeed.o libs/crc64.o
 ROBJ_LIBS=robj/robj.o robj/module.o robj/zset.o robj/stream.o robj/list.o robj/set.o robj/string.o robj/hash.o
 LATTE_SERVER_LIBS_OBJ=$(ROBJ_LIBS) $(LATTE_LIBS)
 #LATTE_SERVER_LIBS_OBJ=libs/log.o libs/zmalloc.o libs/sds.o libs/utils.o libs/dict.o libs/latteassert.o libs/siphash.o libs/connection.o libs/ae.o libs/anet.o libs/syncio.o libs/latteServer.o libs/rax.o libs/crcspeed.o libs/crc64.o  ./config.o ./setproctitle.o ./libs/sha256.o ./module.o ./libs/dict_plus.o ./libs/adlist.o

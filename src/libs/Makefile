@@ -296,10 +296,13 @@ lzf_c.o: ./quicklist/lzf_c.c
 lzf_d.o: ./quicklist/lzf_d.c 
 	$(LATTE_CC) -c $<
 
-quicklist.o: ./quicklist/quicklist.c 
+quicklist.o: ./quicklist/quicklist.c lzf_d.o lzf_c.o 
 	$(LATTE_CC) -c $<
 
-crc64.o: ./crc64/crc64.c 
+crcspeed.o: ./crc64/crcspeed.c 
+	$(LATTE_CC) -c $<
+
+crc64.o: ./crc64/crc64.c crcspeed.o
 	$(LATTE_CC) -c $<
 
 rio.o: ./rio/rio.c 
@@ -322,8 +325,6 @@ all:
 	$(MAKE) listpack.o
 	$(MAKE) stream.o
 	$(MAKE) ziplist.o
-	$(MAKE) lzf_c.o 
-	$(MAKE) lzf_d.o 
 	$(MAKE) quicklist.o
 	$(MAKE) crc64.o 
 	$(MAKE) rio.o

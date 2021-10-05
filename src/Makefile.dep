@@ -6,5 +6,5 @@ latte_redis_server.o: latte_redis_server.c latte_redis_server.h \
  libs/connection/anet.h libs/connection/ae.h libs/connection/monotonic.h \
  libs/connection/../fmacros.h libs/list/list.h libs/rax/rax.h \
  libs/dict/dict.h libs/dict/mt19937-64.h db.h libs/util/util.h \
- libs/log/log.h
+ libs/log/log.h libs/crc64/crc64.h
 redis_command.o: redis_command.c
