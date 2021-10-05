@@ -42,6 +42,7 @@ typedef struct redisServer {
     ustime_t ustime;            /* 'unixtime' in microseconds. */
     
     mode_t umask;               /* The umask value of the process on startup */
+    int hz;                     /* serverCron() calls frequency in hertz */
     int sentinel_mode;          /* True if this instance is a Sentinel. */
 } redisServer;
 extern struct redisServer server;
