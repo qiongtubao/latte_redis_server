@@ -28,6 +28,12 @@ typedef struct redisServer {
     int config_hz;
 
     char runid[CONFIG_RUN_ID_SIZE+1];  /* ID always different at every exec. */
+    /* Replication (master) */
+    char replid[CONFIG_RUN_ID_SIZE+1];  /* My current replication ID. */
+    char replid2[CONFIG_RUN_ID_SIZE+1]; /* replid inherited from master*/
+    long long master_repl_offset;   /* My current replication offset */
+    long long second_replid_offset; /* Accept offsets up to this for replid2. */
+    
     /* time cache */
     redisAtomic time_t unixtime; /* Unix time sampled every cron cycle. */
     time_t timezone;            /* Cached timezone. As set by tzset(). */
@@ -38,9 +44,13 @@ typedef struct redisServer {
     mode_t umask;               /* The umask value of the process on startup */
     int sentinel_mode;          /* True if this instance is a Sentinel. */
 } redisServer;
+extern struct redisServer server;
 
-
+//client callback
 void addReplyError(client *c, const char *err);
 void addReplyLoadedModules(client *c);
 void addReplySubcommandSyntaxError(client *c);
 void moduleCommand(client *c);
+//replication
+void changeReplicationId(void);
+void clearReplicationId2(void);

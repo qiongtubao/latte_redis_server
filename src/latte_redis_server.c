@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include "util/util.h"
 
+
 // #include "client.h"
 struct redisServer server;
 void getCommand(client *c) {
@@ -97,8 +98,8 @@ void initServerConfig(void) {
     updateCachedTime(1);
     getRandomHexChars(server.runid,CONFIG_RUN_ID_SIZE);
     server.runid[CONFIG_RUN_ID_SIZE] = '\0';
-    // changeReplicationId();
-    // clearReplicationId2();
+    changeReplicationId();
+    clearReplicationId2();
     // server.hz = CONFIG_DEFAULT_HZ; /* Initialize it ASAP, even if it may get
     //                                   updated later after loading the config.
     //                                   This value may be used before the server
