@@ -248,8 +248,12 @@ sds.o: ./sds/sds.c
 sha256.o: ./util/sha256.c
 	$(LATTE_CC) -c $<
 
-util.o: ./util/util.c sha256.o
+localtime.o: ./util/localtime.c
 	$(LATTE_CC) -c $<
+
+
+util.o: ./util/util.c localtime.o sha256.o 
+	$(LATTE_CC) -c $< $(FINAL_LIBS)
 
 siphash.o: ./dict/siphash.c 
 	$(LATTE_CC) -c $<

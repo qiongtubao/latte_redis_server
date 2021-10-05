@@ -1,4 +1,5 @@
 #include "util.h"
+#include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,9 +11,12 @@
 #include <float.h>
 #include <stdint.h>
 #include <errno.h>
-#include <time.h>
 #include <fcntl.h>
 #include "sha256.h"
+
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
 
 /* Return the number of digits of 'v' when converted to string in radix 10.
  * See ll2string() for more information. */
@@ -284,6 +288,7 @@ void getRandomHexChars(char *p, size_t len) {
     getRandomBytes((unsigned char*)p,len);
     for (j = 0; j < len; j++) p[j] = charset[p[j] & 0x0F];
 }
+
 
 /*
  * Gets the proper timezone in a more portable fashion

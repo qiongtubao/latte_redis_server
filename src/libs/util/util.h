@@ -26,3 +26,4 @@ long long mstime(void);
 void getRandomBytes(unsigned char *p, size_t len);
 void getRandomHexChars(char *p, size_t len);
 long getTimeZone(void);
+

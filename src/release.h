@@ -1,0 +1,3 @@
+#define REDIS_GIT_SHA1 "9f83596f"
+#define REDIS_GIT_DIRTY "659"
+#define REDIS_BUILD_ID "dong-MS-7B53-1633465575"
