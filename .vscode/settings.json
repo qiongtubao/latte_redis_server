@@ -25,7 +25,10 @@
         "listpack.h": "c",
         "rio.h": "c",
         "cstdlib": "c",
-        "log.h": "c"
+        "log.h": "c",
+        "crc64.h": "c",
+        "string.h": "c",
+        "sha256.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

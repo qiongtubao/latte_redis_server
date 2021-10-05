@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <crc64/crc64.h>
 #include <sys/stat.h>
+#include "util/util.h"
 
 // #include "client.h"
 struct redisServer server;
@@ -61,5 +62,8 @@ int main(int argc, char **argv) {
      * race condition with threads that could be creating files or directories.
      */
     umask(server.umask = umask(0777));
+
+    uint8_t hashseed[16];
+    getRandomBytes(hashseed,sizeof(hashseed));
     return 1;
 }

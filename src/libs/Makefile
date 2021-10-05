@@ -245,7 +245,10 @@ zmalloc.o: ./zmalloc/zmalloc.c
 sds.o: ./sds/sds.c 
 	$(LATTE_CC) -c $<
 
-util.o: ./util/util.c 
+sha256.o: ./util/sha256.c
+	$(LATTE_CC) -c $<
+
+util.o: ./util/util.c sha256.o
 	$(LATTE_CC) -c $<
 
 siphash.o: ./dict/siphash.c 
