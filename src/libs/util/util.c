@@ -290,19 +290,4 @@ void getRandomHexChars(char *p, size_t len) {
 }
 
 
-/*
- * Gets the proper timezone in a more portable fashion
- * i.e timezone variables are linux specific.
- */
-long getTimeZone(void) {
-#if defined(__linux__) || defined(__sun)
-    return timezone;
-#else
-    struct timeval tv;
-    struct timezone tz;
 
-    gettimeofday(&tv, &tz);
-
-    return tz.tz_minuteswest * 60L;
-#endif
-}

@@ -1,4 +1,4 @@
-#include "latte_redis_server.h"
+#include "server.h"
 #include "util/util.h"
 
 #include <time.h>
@@ -107,6 +107,23 @@ void clearReplicationId2(void) {
     server.second_replid_offset = -1;
 }
 
+/*
+ * Gets the proper timezone in a more portable fashion
+ * i.e timezone variables are linux specific.
+ */
+long getTimeZone(void) {
+#if defined(__linux__) || defined(__sun)
+    return timezone;
+#else
+    struct timeval tv;
+    struct timezone tz;
+
+    gettimeofday(&tv, &tz);
+
+    return tz.tz_minuteswest * 60L;
+#endif
+}
+
 /**
  * 初始化配置文件
  */ 
@@ -123,7 +140,7 @@ void initServerConfig(void) {
                                       updated later after loading the config.
                                       This value may be used before the server
                                       is initialized. */
-    // server.timezone = getTimeZone(); /* Initialized by tzset(). */
+    server.timezone = getTimeZone(); /* Initialized by tzset(). */
     // server.configfile = NULL;
     // server.executable = NULL;
     // server.arch_bits = (sizeof(long) == 8) ? 64 : 32;

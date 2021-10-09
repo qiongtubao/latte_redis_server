@@ -301,7 +301,7 @@ ENDCOLOR="\033[0m"
 # LATTE_CHECK_AOF_NAME=redis-check-aof$(PROG_SUFFIX)
 
 LATTE_SERVER_NAME=latte-redis-server
-LATTE_SERVER_OBJ=latte_redis_server.o
+LATTE_SERVER_OBJ=server.o
 LATTE_LIBS=libs/sds.o libs/zmalloc.o libs/sha256.o libs/util.o libs/list.o libs/assert.o  libs/rax.o libs/log.o libs/siphash.o libs/mt19937-64.o libs/dict.o libs/stream.o libs/lzf_c.o libs/lzf_d.o libs/quicklist.o libs/listpack.o libs/ziplist.o libs/crcspeed.o libs/crc64.o
 ROBJ_LIBS=robj/robj.o robj/module.o robj/zset.o robj/stream.o robj/list.o robj/set.o robj/string.o robj/hash.o
 LATTE_SERVER_LIBS_OBJ=$(ROBJ_LIBS) $(LATTE_LIBS) 
