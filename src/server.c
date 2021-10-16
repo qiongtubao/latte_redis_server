@@ -141,13 +141,18 @@ void initServerConfig(void) {
                                       This value may be used before the server
                                       is initialized. */
     server.timezone = getTimeZone(); /* Initialized by tzset(). */
-    // server.configfile = NULL;
-    // server.executable = NULL;
-    // server.arch_bits = (sizeof(long) == 8) ? 64 : 32;
-    // server.bindaddr_count = CONFIG_DEFAULT_BINDADDR_COUNT;
-    // for (j = 0; j < CONFIG_DEFAULT_BINDADDR_COUNT; j++)
-    //     server.bindaddr[j] = zstrdup(default_bindaddr[j]);
-    // server.bind_source_addr = NULL;
+    //配置文件
+    server.configfile = NULL;
+    server.executable = NULL;
+    //判断系统64位还是32位
+    server.arch_bits = (sizeof(long) == 8) ? 64 : 32;
+    //绑定地址个数
+    server.bindaddr_count = CONFIG_DEFAULT_BINDADDR_COUNT;
+    //初始化地址
+    for (j = 0; j < CONFIG_DEFAULT_BINDADDR_COUNT; j++)
+        server.bindaddr[j] = zstrdup(default_bindaddr[j]);
+    server.bind_source_addr = NULL;
+    //
     // server.unixsocketperm = CONFIG_DEFAULT_UNIX_SOCKET_PERM;
     // server.ipfd.count = 0;
     // server.tlsfd.count = 0;
@@ -288,5 +293,6 @@ int main(int argc, char **argv) {
     if (exec_name == NULL) exec_name = argv[0];
     server.sentinel_mode = checkForSentinelMode(argc,argv, exec_name);
     initServerConfig();
+    ACLInit();
     return 1;
 }
