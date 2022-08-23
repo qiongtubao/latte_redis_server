@@ -1,6 +1,0 @@
-robj.o: robj.c robj.h ../libs/zmalloc/zmalloc.h \
- ../../deps/jemalloc/include/jemalloc/jemalloc.h ../libs/sds/sds.h \
- ../libs/assert/assert.h ../libs/assert/../util/util.h \
- ../libs/dict/dict.h ../libs/dict/mt19937-64.h ../libs/stream/stream.h \
- ../libs/stream/../rax/rax.h ../libs/stream/../listpack/listpack.h \
- ../libs/stream/../sds/sds.h ../libs/stream/../util/util.h

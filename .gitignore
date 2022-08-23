@@ -1,3 +1,6 @@
 *.o
-src/latte-redis-server
-src/latte-redis-server
+src/server
+src/server
+*.d
+
+Makefile.dep
