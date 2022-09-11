@@ -1,7 +1,7 @@
 
-#include "sds/sds.h"
+#include "server.h"
 
 
-
+extern struct latteRedisServer redisServer;
 
 
