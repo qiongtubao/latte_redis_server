@@ -1,5 +1,5 @@
 #include "version.h"
-
+#include <stdio.h>
 
 int version() {
     //sha=%s:%d

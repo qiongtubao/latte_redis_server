@@ -1,6 +1,7 @@
 
 #include "dict/dict.h"
 #include "ae/ae.h"
+#include <pthread.h>
 struct latteServer {
     /* General */
     pid_t pid;  
