@@ -1,0 +1,3 @@
+[submodule "deps/latte_c"]
+	path = deps/latte_c
+	url = https://github.com/qiongtubao/latte_c.git
