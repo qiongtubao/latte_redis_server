@@ -2,6 +2,7 @@
 
 #include "version.h"
 #include "help.h"
+#include "env.h"
 #include <string.h>
 
 struct latteRedisServer redisServer;
@@ -26,6 +27,7 @@ typedef enum {
     VERSION,
     TEST_MEMORY,
     CHECK_SYSTEM,
+    ENV,
     SERVER,
 } Mode;
 
@@ -38,6 +40,9 @@ Mode getMode(int argc, sds* argv) {
     if (strcmp(argv[1], "-v") == 0 || 
             strcmp(argv[1], "--version") == 0) {
         return VERSION;
+    }
+    if (strcmp(argv[1], "--env") == 0) {
+        return ENV;
     }
     if (strcmp(argv[1], "--test-memory") == 0) {
         return TEST_MEMORY;
@@ -59,6 +64,9 @@ int main(int argc, char **argv) {
     switch (mode) {
         case HELP:
             help();
+            goto end;
+        case ENV:
+            env();
             goto end;
         case VERSION:
             version();
