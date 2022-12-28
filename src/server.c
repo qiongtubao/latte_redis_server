@@ -53,48 +53,15 @@ sds getAbsolutePath(char *filename) {
     return abspath;
 }
 
-/** latte config module **/
-struct config* createConfig() {
-    struct config* c = zmalloc(sizeof(struct config));
-    return c;
-}
 
 void freeConfig(struct config* c) {
     zfree(c);
 }
 
-int loadConfigFile(struct config* c, sds file) {
-    return 1;
-}
-
-int loadConfigFromSds(struct config* c, sds content) {
-    return 1;
-}
-
-int loadConfigFromArgv(struct config* c, int argc, sds* argv) {
-    // printf config 
-    sds format_conf_sds = sdsempty();
-    int i = 0;
-    while(i < argc) {
-        if (argv[i][0] == '-' && argv[i][1] == '-') {
-            /** Option name **/
-            if (sdslen(format_conf_sds)) format_conf_sds = sdscat(format_conf_sds, "\n");
-            format_conf_sds = sdscat(format_conf_sds, argv[i] + 2);
-            format_conf_sds = sdscat(format_conf_sds, " ");
-        } else {
-            /* maybe value is some params */
-            /* Option argument*/
-            format_conf_sds = sdscatrepr(format_conf_sds, argv[i], sdslen(argv[i]));
-            format_conf_sds = sdscat(format_conf_sds, " ");
-        }
-        i++;
-    }
-    return loadConfigFromSds(c, format_conf_sds);
-}
 
 /** latte server module **/
 int startServer(struct latteServer* server) {
-    printf("start latte server !!!!!\n");
+    printf("start latte server %lld!!!!!\n", server->port);
     return 1;
 }
 
@@ -110,21 +77,22 @@ int startRedisServer(struct latteRedisServer* redisServer, int argc, sds* argv) 
     //argv[0] is exec file
     redisServer->executable = getAbsolutePath(argv[0]);
 
-    redisServer->config = createConfig();
+    redisServer->config = createServerConfig();
+    
     //argv[1] maybe is config file
     int attribute_index = 1;
     if (argv[1][0] != '-') {
         redisServer->configfile = getAbsolutePath(argv[1]);
-        if (loadConfigFile(redisServer->config, redisServer->configfile) == 0) {
+        if (loadConfigFromFile(redisServer->config, redisServer->configfile) == 0) {
             goto fail;
         }
         attribute_index++;
     }
     //add config attribute property
-    if (loadConfigFromArgv(redisServer->config, argc - attribute_index, argv + attribute_index) == 0) {
+    if (loadConfigFromArgv(redisServer->config, argv + attribute_index, argc - attribute_index) == 0) {
         goto fail;
     }
-
+    redisServer->server.port = configGetLongLong(redisServer->config, "port");
     startServer(&redisServer->server);
     return 1;
 fail:

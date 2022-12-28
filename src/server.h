@@ -1,39 +1,43 @@
-
+#ifndef __LATTE_REDIS_SERVER_H
+#define __LATTE_REDIS_SERVER_H
 #include "dict/dict.h"
 #include "ae/ae.h"
 #include <pthread.h>
 #include "sds/sds.h"
+#include "config/config.h"
 struct latteServer {
     /* General */
     pid_t pid;  
     pthread_t main_thread_id;
     aeEventLoop *el;
+    long long port;
 } latteServer;
 
 /* Global vars */
 struct latteServer server; /* Server global state */
+config* createServerConfig();
 int startServer(struct latteServer* server);
 int stopServer(struct latteServer* server);
 
 
-/** config **/
-struct configRule {
+// /** config **/
+// struct configRule {
 
-} configRule;
-struct config {
+// } configRule;
+// struct config {
     
-} config;
-struct config* createConfig();
-int loadConfigFile(struct config* c, sds file);
-void freeConfig(struct config* c);
-int registerConfig(struct config* c, char* key, struct configRule* rule);
-int getIntConfig(struct config* c, char* key);
-sds getSdsConfig(struct config* c, char* key);
-int setIntConfig(struct config* c, char* key, int value);
-int setSdsConfig(struct config* c, char* key, sds value);
+// } config;
+// struct config* createConfig();
+// int loadConfigFile(struct config* c, sds file);
+// void freeConfig(struct config* c);
+// int registerConfig(struct config* c, char* key, struct configRule* rule);
+// int getIntConfig(struct config* c, char* key);
+// sds getSdsConfig(struct config* c, char* key);
+// int setIntConfig(struct config* c, char* key, int value);
+// int setSdsConfig(struct config* c, char* key, sds value);
 
 /** latte redis server **/
-struct latteRedisServer {
+typedef struct latteRedisServer {
     struct latteServer server;
     int exec_argc;
     sds* exec_argv;
@@ -59,3 +63,4 @@ struct latteRedisServer {
 
 PRIVATE int startRedisServer(struct latteRedisServer* redisServer, int argc, sds* argv);
 
+#endif
