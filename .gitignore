@@ -1,6 +1,6 @@
 *.o
-src/server
-src/server
+
+src/main
 *.d
 
 Makefile.dep
