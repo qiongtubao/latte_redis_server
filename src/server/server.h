@@ -1,7 +1,10 @@
 
 #ifndef __LATTE_SERVER_H
 #define __LATTE_SERVER_H
+#include <pthread.h>
 #include "crons.h"
+#include "ae/ae.h"
+
 typedef struct latteServer {
     /* General */
     pid_t pid;  
@@ -9,6 +12,7 @@ typedef struct latteServer {
     aeEventLoop *el;
     long long port; /* server port */
     crons *crons;
+    int hz;
 } latteServer;
 
 latteServer* createServer(aeEventLoop* el);

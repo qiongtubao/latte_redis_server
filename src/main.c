@@ -3,6 +3,7 @@
 #include "version.h"
 #include "help.h"
 #include "env.h"
+#include "sds/sds.h"
 #include <string.h>
 
 struct latteRedisServer redisServer;

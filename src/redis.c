@@ -1,5 +1,6 @@
-#include "server.h"
+// #include "server.h"
 #include <stdio.h>
+#include "redis.h"
 /** utils  **/
 /* Given the filename, return the absolute path as an SDS string, or NULL
  * if it fails for some reason. Note that "filename" may be an absolute path
@@ -60,10 +61,10 @@ void freeConfig(struct config* c) {
 
 
 /** latte server module **/
-int startServer(struct latteServer* server) {
-    printf("start latte server %lld!!!!!\n", server->port);
-    return 1;
-}
+// int startServer(struct latteServer* server) {
+//     printf("start latte server %lld!!!!!\n", server->port);
+//     return 1;
+// }
 
 int stopServer(struct latteServer* server) {
     printf("stop latte server !!!!!\n");
