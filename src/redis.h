@@ -7,11 +7,6 @@
 #include "config/config.h"
 #include "server/server.h"
 #define PRIVATE 
-
-/* Global vars */
-config* createServerConfig();
-
-/** latte redis server **/
 typedef struct latteRedisServer {
     struct latteServer server;
     int exec_argc;
@@ -22,6 +17,11 @@ typedef struct latteRedisServer {
     dict* commands;
     dict* robj_register;
 } latteRedisServer;
+/* Global vars */
+config* createServerConfig();
+
+/** latte redis server **/
+
 
 /**
  * @brief 
