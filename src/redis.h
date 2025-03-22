@@ -14,11 +14,11 @@ typedef struct latteRedisServer {
     sds executable; /** execut file path **/
     sds configfile;
     struct config* config;
-    dict* commands;
-    dict* robj_register;
+    dict_t* commands;
+    dict_t* robj_register;
 } latteRedisServer;
 /* Global vars */
-config* createServerConfig();
+config_manager_t* create_server_config();
 
 /** latte redis server **/
 

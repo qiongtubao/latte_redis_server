@@ -15,7 +15,7 @@ sds* parseArgv(int argc, char** argv, int* len) {
     // result[0] = getAbsolutePath(argv[0]);
     result[argc] = NULL;
     for(int j = 0; j < argc; j++) {
-        result[j] = sdsnewlen(argv[j], strlen(argv[j]));
+        result[j] = sds_new_len(argv[j], strlen(argv[j]));
     }
     *len = argc;
     return result;
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 
 end:
     for(int i = 0; i < exec_argc; i++) {
-        sdsfree(exec_argv[i]);
+        sds_delete(exec_argv[i]);
     }
     zfree(exec_argv);
     return 1;

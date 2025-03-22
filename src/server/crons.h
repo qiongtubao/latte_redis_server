@@ -9,7 +9,7 @@ typedef struct cron {
 
 typedef struct crons {
     long long cronloops;
-    list* crons;
+    list_t* crons;
 } crons;
 crons* createCrons();
 
