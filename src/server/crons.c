@@ -4,6 +4,7 @@
 crons* createCrons() {
     crons* c = zmalloc(sizeof(crons));
     c->cronloops = 0;
+    c->crons = list_new();
     return c;
 }
 
