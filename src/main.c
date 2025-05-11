@@ -6,7 +6,7 @@
 #include "sds/sds.h"
 #include <string.h>
 
-struct latteRedisServer redisServer;
+struct redis_server_t redis_server;
 
 
 sds* parseArgv(int argc, char** argv, int* len) {
@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
             version();
             goto end; 
         case SERVER:
-            startRedisServer(&redisServer, exec_argc, exec_argv);
+            start_redis_server(&redis_server, exec_argc, exec_argv);
             goto end;
         default:
             break;

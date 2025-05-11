@@ -1,8 +1,8 @@
 #include "crons.h"
 #include <stdio.h>
 #include <zmalloc/zmalloc.h>
-crons* createCrons() {
-    crons* c = zmalloc(sizeof(crons));
+crons_t* crons_new() {
+    crons_t* c = zmalloc(sizeof(crons_t));
     c->cronloops = 0;
     c->crons = list_new();
     return c;
@@ -10,22 +10,22 @@ crons* createCrons() {
 
 
 
-int addCron(crons* cs, cron* c) {
+int addCron(crons_t* cs, cron_t* c) {
     
 }
 
-int removeCron(crons* cs, cron* c) {
+int removeCron(crons_t* cs, cron_t* c) {
 
 }
 
-cron* createCron(long long period, execCronFn* fn) {
-    cron* c = zmalloc(sizeof(cron));
+cron_t* cron_new(long long period, exec_cron_fn* fn) {
+    cron_t* c = zmalloc(sizeof(cron_t));
     c->period = period;
     c->fn = fn;
     return c;
 }
 
-int cronloop(crons* cs, void* p) {
+int cronloop(crons_t* cs, void* p) {
     // listIter* iter = listGetIterator(cs->crons);
     // while ((node = listNext(iter)) != NULL) {
     //    cron* c = listNodeValue(node);
