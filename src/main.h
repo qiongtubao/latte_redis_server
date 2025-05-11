@@ -2,6 +2,6 @@
 #include "redis.h"
 
 
-extern struct latteRedisServer redisServer;
+extern struct redis_server_t redisServer;
 
 

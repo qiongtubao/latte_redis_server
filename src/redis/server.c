@@ -1,7 +1,8 @@
 // #include "server.h"
 #include <stdio.h>
-#include "redis.h"
-#include "server/client.h"
+#include "server.h"
+#include "client.h"
+#include "dict/dict_plugins.h"
 /** utils  **/
 /* Given the filename, return the absolute path as an SDS string, or NULL
  * if it fails for some reason. Note that "filename" may be an absolute path
@@ -10,7 +11,7 @@
  * The function does not try to normalize everything, but only the obvious
  * case of one or more "../" appearing at the start of "filename"
  * relative path. */
-sds getAbsolutePath(char *filename) {
+sds get_absolute_path(char *filename) {
     char cwd[1024];
     sds abspath;
     sds relpath = sds_new(filename);
@@ -56,9 +57,9 @@ sds getAbsolutePath(char *filename) {
 }
 
 
-void freeConfig(struct config* c) {
-    zfree(c);
-}
+// void free_config(config_t* c) {
+//     zfree(c);
+// }
 
 
 /** latte server module **/
@@ -67,54 +68,79 @@ void freeConfig(struct config* c) {
 //     return 1;
 // }
 
-int stopRedisServer(struct latteRedisServer* server) {
+int stopRedisServer(struct redis_server_t* server) {
     printf("stop latte server !!!!!\n");
     return 1;
 }
 
+dict_func_t command_table_dict_type = {
+    dict_sds_case_hash,
+    NULL,
+    NULL,
+    dict_sds_key_case_compare,
+    dict_sds_destructor,
+    NULL,
+    NULL
+};
+
+void init_redis_server(struct redis_server_t* rs) {
+    rs->clients_to_close = list_new();
+    rs->commands = dict_new(&command_table_dict_type);
+} 
 /** About latte RedisServer **/
-int startRedisServer(struct latteRedisServer* redisServer, int argc, sds* argv) {
+int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv) {
     log_init();
     log_add_stdout(LATTE_LIB, LOG_DEBUG);
     LATTE_LIB_LOG(LOG_INFO, "start redis server ");
-    redisServer->exec_argc = argc;
-    redisServer->exec_argv = argv;
+    init_redis_server(redis_server);
+    redis_server->exec_argc = argc;
+    redis_server->exec_argv = argv;
     //argv[0] is exec file
-    redisServer->executable = getAbsolutePath(argv[0]);
+    redis_server->executable = get_absolute_path(argv[0]);
 
-    redisServer->config = create_server_config();
+    redis_server->config = create_server_config();
     
     //argv[1] maybe is config file
     int attribute_index = 1;
     if (argv[1][0] != '-') {
-        redisServer->configfile = getAbsolutePath(argv[1]);
-        if (load_config_from_file(redisServer->config, redisServer->configfile) == 0) {
+        redis_server->configfile = get_absolute_path(argv[1]);
+        if (load_config_from_file(redis_server->config, redis_server->configfile) == 0) {
             goto fail;
         }
         attribute_index++;
     }
 
     //add config attribute property
-    if (load_config_from_argv(redisServer->config, argv + attribute_index, argc - attribute_index) == 0) {
+    if (load_config_from_argv(redis_server->config, argv + attribute_index, argc - attribute_index) == 0) {
         goto fail;
     }
-    initInnerLatteServer(&redisServer->server);
+    init_latte_server(&redis_server->server);
     LATTE_LIB_LOG(LOG_INFO, "init redis server ");
-    redisServer->server.maxclients = config_get_int64(redisServer->config, "max-clients");
-    redisServer->server.el = aeCreateEventLoop(1024);
-    redisServer->server.tcp_backlog = config_get_int64(redisServer->config, "tcp-backlog"); 
-    redisServer->server.port = config_get_int64(redisServer->config, "port");
-    redisServer->server.maxclients = config_get_int64(redisServer->config, "max-clients");
-    redisServer->server.createClient = createRedisClient;
-    redisServer->server.freeClient = freeRedisClient;
-    redisServer->server.bind = config_get_array(redisServer->config, "bind");
+    redis_server->server.maxclients = config_get_int64(redis_server->config, "max-clients");
+    redis_server->server.el = aeCreateEventLoop(1024);
+    redis_server->server.tcp_backlog = config_get_int64(redis_server->config, "tcp-backlog"); 
+    redis_server->server.port = config_get_int64(redis_server->config, "port");
+    redis_server->server.maxclients = config_get_int64(redis_server->config, "max-clients");
+    redis_server->server.createClient = create_redis_client;
+    redis_server->server.freeClient = redis_client_delete;
+    redis_server->server.bind = config_get_array(redis_server->config, "bind");
     LATTE_LIB_LOG(LOG_INFO, "init redis server config");
-    startLatteServer(&redisServer->server);
-    
-
-
+    start_latte_server(&redis_server->server);
     return 1;
 fail:
     printf("start latte redis fail");
     return 0;
+}
+
+void _redis_panic(const char *file, int line, const char *msg, ...) {
+    va_list ap;
+    va_start(ap,msg);
+    char fmtmsg[256];
+    vsnprintf(fmtmsg,sizeof(fmtmsg),msg,ap);
+    va_end(ap);
+    LATTE_LIB_LOG(LOG_ERROR, fmtmsg);
+}
+
+struct redis_command_t* lookup_command(redis_server_t* server, sds command) {
+    return dict_fetch_value(server->commands, command);
 }

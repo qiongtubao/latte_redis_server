@@ -1,5 +1,6 @@
 
-LIB_MODUELS="sds dict ae config list server"
+
+LIB_MODUELS="zset stream sds dict ae config list server object lzf"
 
 uname_S:= $(shell sh -c 'uname -s 2>/dev/null || echo not')
 uname_M:= $(shell sh -c 'uname -s 2>/dev/null || echo not')
@@ -15,7 +16,7 @@ latte_lib:
 	gcc -o $@ -c $< -I../deps/latte_c/out/include 
 
 MAC_M1_CFLAGS=-fprofile-arcs -ftest-coverage
-OBJS=version.o main.o help.o  env.o server/config.o redis.o server/crons.o server/client.o
+OBJS=version.o main.o help.o  env.o redis/config.o redis/server.o redis/crons.o redis/client.o redis/client_reply.o
 # -lstdc++
 all: latte_lib $(OBJS)
 	gcc -o main $(OBJS) -I../deps/latte_c/out/include ../deps/latte_c/out/lib/liblatte.a  ../deps/latte_c/deps/jemalloc/lib/libjemalloc.a $(FINAL_SHARD_LIB) -lm  -ldl -lz -lstdc++ -lpthread $(MAC_M1_CFLAGS)
