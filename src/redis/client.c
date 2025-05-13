@@ -23,12 +23,13 @@ int get_client_type(redis_client_t *c) {
     return CLIENT_TYPE_NORMAL;
 }
 
-int process_command(redis_client_t* rc) {
+void call(redis_client_t* rc, int flags) {
 
-    return 0;
+    rc->cmd->proc(rc);
+    
 }
 
-void command_processed(redis_client_t* rc) {
+int process_command(redis_client_t* rc) {
     redis_server_t* server = (redis_server_t*)rc->client.server;
     // if (!server.lua_timedout) {
     //     /* Both EXEC and EVAL call call() directly so there should be
@@ -43,6 +44,13 @@ void command_processed(redis_client_t* rc) {
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
     rc->cmd = rc->lastcmd = lookup_command(server, rc->argv[0]->ptr);
+    
+    call(rc, CMD_CALL_FULL);
+    return 0;
+}
+
+void command_processed(redis_client_t* rc) {
+    
 }
 
 int process_command_and_reset_client(redis_client_t* rc) {

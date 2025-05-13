@@ -93,6 +93,7 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     log_add_stdout(LATTE_LIB, LOG_DEBUG);
     LATTE_LIB_LOG(LOG_INFO, "start redis server ");
     init_redis_server(redis_server);
+    register_commands(redis_server);
     redis_server->exec_argc = argc;
     redis_server->exec_argv = argv;
     //argv[0] is exec file
@@ -141,6 +142,3 @@ void _redis_panic(const char *file, int line, const char *msg, ...) {
     LATTE_LIB_LOG(LOG_ERROR, fmtmsg);
 }
 
-struct redis_command_t* lookup_command(redis_server_t* server, sds command) {
-    return dict_fetch_value(server->commands, command);
-}
