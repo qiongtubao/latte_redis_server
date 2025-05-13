@@ -24,8 +24,9 @@ typedef struct redis_server_t {
 } redis_server_t;
 
 
-int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv);
-redis_command_t* lookup_command(redis_server_t* server, sds command);
+int start_redis_server(redis_server_t* redis_server, int argc, sds* argv);
+void register_commands(struct redis_server_t* redis_server);
+redis_command_t* lookup_command(struct redis_server_t* server, sds command);
 
 #if __GNUC__ >= 4
 #define redis_unreachable __builtin_unreachable
