@@ -28,9 +28,11 @@ int start_redis_server(redis_server_t* redis_server, int argc, sds* argv);
 void register_commands(struct redis_server_t* redis_server);
 redis_command_t* lookup_command(struct redis_server_t* server, sds command);
 
-
+#define OBJ_SHARED_BULKHDR_LEN 32
 typedef struct shared_objects_t {
-   latte_object_t* crlf, *ok;
+   latte_object_t* crlf, *ok, *pong,
+   *mbulkhdr[OBJ_SHARED_BULKHDR_LEN], /* "*<value>\r\n" */
+   *bulkhdr[OBJ_SHARED_BULKHDR_LEN];  /* "$<value>\r\n" */
 } shared_objects_t;
 extern struct shared_objects_t shared;
 
