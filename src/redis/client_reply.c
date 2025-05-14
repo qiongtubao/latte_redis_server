@@ -5,6 +5,7 @@
 #include "debug/latte_debug.h"
 #include "server.h"
 #include "utils/utils.h"
+#include "object/string.h"
 
 sds cat_redis_client_info_string(sds s, redis_client_t *client) {
     return s;
@@ -152,4 +153,42 @@ void add_reply(redis_client_t* c, latte_object_t* obj) {
     } else {
         redis_panic("Wrong obj->encoding in addReply()");
     }
+}
+
+/* Add a long long as integer reply or bulk len / multi bulk count.
+ * Basically this is used to output <prefix><long long><crlf>. */
+void add_reply_long_long_with_prefix(redis_client_t *c, long long ll, char prefix) {
+    char buf[128];
+    int len;
+
+    /* Things like $3\r\n or *2\r\n are emitted very often by the protocol
+     * so we have a few shared objects to use if the integer is small
+     * like it is most of the times. */
+    if (prefix == '*' && ll < OBJ_SHARED_BULKHDR_LEN && ll >= 0) {
+        add_reply(c,shared.mbulkhdr[ll]);
+        return;
+    } else if (prefix == '$' && ll < OBJ_SHARED_BULKHDR_LEN && ll >= 0) {
+        add_reply(c,shared.bulkhdr[ll]);
+        return;
+    }
+
+    buf[0] = prefix;
+    len = ll2string(buf+1,sizeof(buf)-1,ll);
+    buf[len+1] = '\r';
+    buf[len+2] = '\n';
+    add_reply_proto(c,buf,len+3);
+}
+
+
+/* Create the length prefix of a bulk reply, example: $2234 */
+void add_reply_bulk_len(redis_client_t *c, latte_object_t *obj) {
+    size_t len = string_object_len(obj);
+
+    add_reply_long_long_with_prefix(c,len,'$');
+}
+
+void add_reply_bulk(redis_client_t* c, latte_object_t* obj) {
+    add_reply_bulk_len(c,obj);
+    add_reply(c,obj);
+    add_reply(c,shared.crlf);
 }

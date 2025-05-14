@@ -184,6 +184,21 @@ void module_command(redis_client_t* c) {
     LATTE_LIB_LOG(LL_INFO, "module");
 }
 
+void ping_command(redis_client_t* c) {
+    if (c->argc > 2) {
+        add_reply_error_format(c, "wrong number of arguments for '%s' command",
+            c->cmd->name);
+        return;
+    }
+    if (c->argc == 1) {
+        LATTE_LIB_LOG(LL_INFO,"ping");
+        add_reply(c, shared.pong);
+    } else {
+        add_reply_bulk(c, c->argv[1]);
+    }
+    
+}
+
 struct redis_command_t redis_command_table[] = {
     {
         "quit", quit_command, 0,
@@ -193,6 +208,11 @@ struct redis_command_t redis_command_table[] = {
     {
         "module", module_command, -2,
         "admin no-script",
+        0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
+    },
+    {
+        "ping", ping_command, -2,
+        "admin",
         0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
     }
 };
