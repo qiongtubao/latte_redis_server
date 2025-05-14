@@ -87,12 +87,18 @@ void init_redis_server(struct redis_server_t* rs) {
     rs->clients_to_close = list_new();
     rs->commands = dict_new(&command_table_dict_type);
 } 
+struct shared_objects_t shared;
+void init_shared_objects() {
+    shared.crlf = latte_object_new(OBJ_STRING,sds_new("\r\n"));
+    shared.ok = latte_object_new(OBJ_STRING,sds_new("+OK\r\n"));
+}
 /** About latte RedisServer **/
 int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv) {
     log_init();
     log_add_stdout(LATTE_LIB, LOG_DEBUG);
     LATTE_LIB_LOG(LOG_INFO, "start redis server ");
     init_redis_server(redis_server);
+    init_shared_objects();
     register_commands(redis_server);
     redis_server->exec_argc = argc;
     redis_server->exec_argv = argv;
@@ -141,4 +147,6 @@ void _redis_panic(const char *file, int line, const char *msg, ...) {
     va_end(ap);
     LATTE_LIB_LOG(LOG_ERROR, fmtmsg);
 }
+
+
 

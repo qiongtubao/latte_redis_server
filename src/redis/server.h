@@ -28,6 +28,12 @@ int start_redis_server(redis_server_t* redis_server, int argc, sds* argv);
 void register_commands(struct redis_server_t* redis_server);
 redis_command_t* lookup_command(struct redis_server_t* server, sds command);
 
+
+typedef struct shared_objects_t {
+   latte_object_t* crlf, *ok;
+} shared_objects_t;
+extern struct shared_objects_t shared;
+
 #if __GNUC__ >= 4
 #define redis_unreachable __builtin_unreachable
 #else

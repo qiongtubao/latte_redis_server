@@ -4,6 +4,7 @@
 #include <string.h>
 #include "debug/latte_debug.h"
 #include "server.h"
+#include "utils/utils.h"
 
 sds cat_redis_client_info_string(sds s, redis_client_t *client) {
     return s;
@@ -136,4 +137,19 @@ void add_reply_error_format(redis_client_t *c, const char *fmt, ...) {
     add_reply_error_length(c,s,sds_len(s));
     // after_error_reply(c,s,sds_len(s));
     sds_delete(s);
+}
+
+void add_reply(redis_client_t* c, latte_object_t* obj) {
+    if (sds_encoded_object(obj)) {
+        add_reply_proto(c, obj->ptr,sds_len(obj->ptr));
+    } else if (obj->encoding == OBJ_ENCODING_INT) {
+        /* For integer encoded strings we just convert it into a string
+         * using our optimized function, and attach the resulting string
+         * to the output buffer. */
+        char buf[32];
+        size_t len = ll2string(buf,sizeof(buf),(long)obj->ptr);
+         add_reply_proto(c, buf, len);
+    } else {
+        redis_panic("Wrong obj->encoding in addReply()");
+    }
 }
