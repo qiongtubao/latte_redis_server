@@ -3,7 +3,7 @@
 #include <string.h>
 #include "debug/latte_debug.h"
 #include "rax/rax.h"
-
+#include "client.h"
 /* OOM Score Adjustment classes. */
 #define CONFIG_OOM_MASTER 0
 #define CONFIG_OOM_REPLICA 1
@@ -176,7 +176,8 @@ int populate_command_table_parse_flags(struct redis_command_t *c, char *strflags
 }
 
 void quit_command(redis_client_t* c) {
-    LATTE_LIB_LOG(LL_INFO, "quit");
+    add_reply(c, shared.ok);
+    c->client.flags |= CLIENT_CLOSE_AFTER_REPLY;
 }
 
 void module_command(redis_client_t* c) {

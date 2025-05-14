@@ -72,6 +72,7 @@ void redis_client_delete(latte_client_t* client);
 void free_redis_client(redis_client_t* client);
 void free_redis_client_async(redis_client_t* client);
 
+void add_reply(redis_client_t* c, latte_object_t* o);
 void add_reply_error(redis_client_t *c, const char *err);
 void add_reply_error_length(redis_client_t* rc, const char *s, size_t len);
 void add_reply_error_format(redis_client_t *c, const char *fmt, ...);
