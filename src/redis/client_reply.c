@@ -6,6 +6,10 @@
 #include "server.h"
 #include "utils/utils.h"
 #include "object/string.h"
+int prepare_client_to_write(redis_client_t* c) {
+    return 0;
+}
+
 
 sds cat_redis_client_info_string(sds s, redis_client_t *client) {
     return s;
@@ -20,7 +24,7 @@ sds cat_redis_client_info_string(sds s, redis_client_t *client) {
  * enforcing the client output length limits. */
 unsigned long get_client_output_buffer_memory_usage(redis_client_t *c) {
     unsigned long list_item_size = sizeof(list_node_t) + sizeof(client_reply_block_t);
-    return c->reply_bytes + (list_item_size*list_length(c->reply));
+    return c->reply_bytes + (list_item_size*list_length(c->client.reply));
 }
 /* The function checks if the client reached output buffer soft or hard
  * limit, and also update the state needed to check the soft limit as
@@ -141,6 +145,7 @@ void add_reply_error_format(redis_client_t *c, const char *fmt, ...) {
 }
 
 void add_reply(redis_client_t* c, latte_object_t* obj) {
+    if (prepare_client_to_write(c) != 0) return;
     if (sds_encoded_object(obj)) {
         add_reply_proto(c, obj->ptr,sds_len(obj->ptr));
     } else if (obj->encoding == OBJ_ENCODING_INT) {
@@ -191,4 +196,145 @@ void add_reply_bulk(redis_client_t* c, latte_object_t* obj) {
     add_reply_bulk_len(c,obj);
     add_reply(c,obj);
     add_reply(c,shared.crlf);
+}
+
+
+void trim_reply_unused_tail_space(redis_client_t* c) {
+    list_node_t* ln = list_last(c->client.reply);
+
+    client_reply_block_t* tail = ln? list_node_value(ln): NULL;
+
+    if (!tail) return;
+
+    if (tail->size - tail->used > tail->size / 4 && 
+        tail->used < PROTO_REPLY_CHUNK_BYTES) {
+            size_t old_size = tail->size;
+            tail = zrealloc(tail, tail->used + sizeof(client_reply_block_t));
+
+        tail->size = zmalloc_usable_size(tail) - sizeof(client_reply_block_t);
+        c->reply_bytes = c->reply_bytes + tail->size - old_size;
+        list_node_value(ln) = tail;
+    }
+}
+
+void* add_reply_deferred_len(redis_client_t* c) {
+    if (prepare_client_to_write(c) != 0) return NULL;
+    
+    trim_reply_unused_tail_space(c);
+    list_add_node_tail(c->client.reply, NULL);
+    return list_last(c->client.reply);
+}
+
+void add_reply_status_length(redis_client_t *c, const char *s, size_t len) {
+    add_reply_proto(c,"+",1);
+    add_reply_proto(c,s,len);
+    add_reply_proto(c,"\r\n",2);
+}
+
+void add_reply_status_format(redis_client_t *c, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap,fmt);
+    sds s = sds_cat_vprintf(sds_empty(),fmt,ap);
+    va_end(ap);
+    add_reply_status_length(c,s,sds_len(s));
+    sds_delete(s);
+}
+
+void add_reply_status(redis_client_t *c, const char *status) {
+    add_reply_status_length(c,status,strlen(status));
+}
+
+void set_deferred_reply(redis_client_t *c, void *node, const char *s, size_t length) {
+    list_node_t *ln = (list_node_t*)node;
+    client_reply_block_t *next, *prev;
+
+    /* Abort when *node is NULL: when the client should not accept writes
+     * we return NULL in addReplyDeferredLen() */
+    if (node == NULL) return;
+    latte_assert(!list_node_value(ln));
+
+    /* Normally we fill this dummy NULL node, added by addReplyDeferredLen(),
+     * with a new buffer structure containing the protocol needed to specify
+     * the length of the array following. However sometimes there might be room
+     * in the previous/next node so we can instead remove this NULL node, and
+     * suffix/prefix our data in the node immediately before/after it, in order
+     * to save a write(2) syscall later. Conditions needed to do it:
+     *
+     * - The prev node is non-NULL and has space in it or
+     * - The next node is non-NULL,
+     * - It has enough room already allocated
+     * - And not too large (avoid large memmove) */
+    if (ln->prev != NULL && (prev = list_node_value(ln->prev)) &&
+        prev->size - prev->used > 0)
+    {
+        size_t len_to_copy = prev->size - prev->used;
+        if (len_to_copy > length)
+            len_to_copy = length;
+        memcpy(prev->buf + prev->used, s, len_to_copy);
+        prev->used += len_to_copy;
+        length -= len_to_copy;
+        if (length == 0) {
+            list_del_node(c->client.reply, ln);
+            return;
+        }
+        s += len_to_copy;
+    }
+
+    if (ln->next != NULL && (next = list_node_value(ln->next)) &&
+        next->size - next->used >= length &&
+        next->used < PROTO_REPLY_CHUNK_BYTES * 4)
+    {
+        memmove(next->buf + length, next->buf, next->used);
+        memcpy(next->buf, s, length);
+        next->used += length;
+        list_del_node(c->client.reply,ln);
+    } else {
+        /* Create a new node */
+        client_reply_block_t *buf = zmalloc(length + sizeof(client_reply_block_t));
+        /* Take over the allocation's internal fragmentation */
+        buf->size = zmalloc_usable_size(buf) - sizeof(client_reply_block_t);
+        buf->used = length;
+        memcpy(buf->buf, s, length);
+        list_node_value(ln) = buf;
+        c->reply_bytes += buf->size;
+
+        // closeClientOnOutputBufferLimitReached(c, 1);
+    }
+}
+
+/* Populate the length object and try gluing it to the next chunk. */
+void set_deferred_aggregate_len(redis_client_t *c, void *node, long length, char prefix) {
+    latte_assert(length >= 0);
+
+    /* Abort when *node is NULL: when the client should not accept writes
+     * we return NULL in addReplyDeferredLen() */
+    if (node == NULL) return;
+
+    char lenstr[128];
+    size_t lenstr_len = sprintf(lenstr, "%c%ld\r\n", prefix, length);
+    set_deferred_reply(c, node, lenstr, lenstr_len);
+}
+
+void set_deferred_array_len(redis_client_t *c, void *node, long length) {
+    set_deferred_aggregate_len(c,node,length,'*');
+}
+
+void add_reply_help(redis_client_t* c, char** help) {
+    sds cmd = sds_new((char*) c->argv[0]->ptr);
+
+    void *blenp = add_reply_deferred_len(c);
+    int blen = 0;
+
+    sds_to_upper(cmd);
+    add_reply_status_format(c, "%s <subcommand> [<arg> [value] [opt] ...]. Subcommands are:", cmd);
+    sds_delete(cmd);
+    while (help[blen]) add_reply_status(c, help[blen++]);
+
+    add_reply_status(c, "HELP");
+    add_reply_status(c, "   Prints this help.");
+
+    blen += 1; /* Account for the header. */
+    blen += 2; /* Account for the footer. */
+    set_deferred_array_len(c, blenp, blen);
+
 }

@@ -180,9 +180,7 @@ void quit_command(redis_client_t* c) {
     c->client.flags |= CLIENT_CLOSE_AFTER_REPLY;
 }
 
-void module_command(redis_client_t* c) {
-    LATTE_LIB_LOG(LL_INFO, "module");
-}
+
 
 void ping_command(redis_client_t* c) {
     if (c->argc > 2) {
@@ -197,6 +195,23 @@ void ping_command(redis_client_t* c) {
         add_reply_bulk(c, c->argv[1]);
     }
     
+}
+
+void module_command(redis_client_t* c) {
+    char* subcmd = c->argv[1]->ptr;
+    if (c->argc == 2 && !strcasecmp(subcmd, "help")) {
+        const char *help[] = {
+            "LIST",
+            "  Return a list of loaded modules.",
+            "LOAD <path> [<arg> ...]",
+            "  Load a module library from <path>, passing to it any optional arguments.",
+            "UNLOAD <name>",
+            "  Unload a module.",
+            NULL
+        };
+        LATTE_LIB_LOG(LL_WARN, "module help");
+        add_reply_help(c, help);
+    }
 }
 
 struct redis_command_t redis_command_table[] = {
