@@ -83,9 +83,20 @@ dict_func_t command_table_dict_type = {
     NULL
 };
 
+dict_func_t modules_dict_type = {
+    dict_sds_case_hash,
+    NULL,
+    NULL,
+    dict_sds_key_case_compare,
+    dict_sds_destructor,
+    NULL,
+    NULL
+};
+
 void init_redis_server(struct redis_server_t* rs) {
     rs->clients_to_close = list_new();
     rs->commands = dict_new(&command_table_dict_type);
+    rs->modules = dict_new(&modules_dict_type);
 } 
 struct shared_objects_t shared;
 void init_shared_objects() {
