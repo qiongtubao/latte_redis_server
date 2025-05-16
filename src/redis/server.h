@@ -19,6 +19,9 @@ typedef struct redis_server_t {
 
     struct redis_client_t* current_client;
 
+    /** module */
+    dict_t* modules;
+    
     /* config */
     long long proto_max_bulk_len;
 } redis_server_t;
@@ -35,6 +38,14 @@ typedef struct shared_objects_t {
    *bulkhdr[OBJ_SHARED_BULKHDR_LEN];  /* "$<value>\r\n" */
 } shared_objects_t;
 extern struct shared_objects_t shared;
+
+
+/** commands */
+void module_help_command(redis_client_t* c);
+void module_list_command(redis_client_t* c);
+void module_load_command(redis_client_t* c);
+void module_unload_command(redis_client_t* c);
+
 
 #if __GNUC__ >= 4
 #define redis_unreachable __builtin_unreachable
