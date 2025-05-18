@@ -4,6 +4,19 @@
 #include "module.h"
 #include <dlfcn.h>
 #include <sys/stat.h>
+#include <string.h>
+#define REDISMODULE_CORE 1
+#include "redis_module.h"
+
+#define REDIS_MODULE_CTX_AUTO_MEMORY (1<<0)
+#define REDIS_MODULE_CTX_KEYS_POS_REQUEST (1<<1)
+#define REDIS_MODULE_CTX_BLOCKED_REPLY (1<<2)
+#define REDIS_MODULE_CTX_BLOCKED_TIMEOUT (1<<3)
+#define REDIS_MODULE_CTX_THREAD_SAFE (1<<4)
+#define REDIS_MODULE_CTX_BLOCKED_DISCONNECTED (1<<5)
+#define REDIS_MODULE_CTX_MODULE_COMMAND_CALL (1<<6)
+#define REDIS_MODULE_CTX_MULTI_EMITTED (1<<7)
+
 void module_help_command(redis_client_t* c) {
     const char *help[] = {
         "LIST",
@@ -18,10 +31,20 @@ void module_help_command(redis_client_t* c) {
 }
 
 static redis_client_t *module_free_context_reused_client;
+int redis_module_use_get_api(redis_module_ctx_t* ctx, const char* funcname, void **ptr) {
+    dict_entry_t* he = dict_find(ctx->server->module_api, funcname);
+    if (!he) return -1;
+    *ptr = dict_get_val(he);
+    return 0;
+}
+
+#define REDIS_MODULE_CTX_INIT {(void*)(unsigned long)&redis_module_use_get_api,NULL,NULL,0}
 int module_load(redis_server_t* server,const char *path, void **module_argv, int module_argc) {
     int (*onload)(void *, void **, int);
     void* handle;
     redis_module_ctx_t ctx = REDIS_MODULE_CTX_INIT;
+    ctx.server = server;
+    LATTE_LIB_LOG(LL_WARN, "module load set server module_api %p", server->module_api);
     // ctx.client = module_free_context_reused_client;
     // selectDb(ctx.client, 0);
 
@@ -60,7 +83,6 @@ int module_load(redis_server_t* server,const char *path, void **module_argv, int
         LATTE_LIB_LOG(LL_WARN, "Module %s initialization failed. Module not loaded",path);
         return -1;
     }
-
     dict_add(server->modules, ctx.module->name, ctx.module);
     // ctx.module->blocked_clients = 0;
     // ctx.module->handle = handle;
@@ -95,4 +117,231 @@ void module_unload_command(redis_client_t* c) {
 
 void module_list_command(redis_client_t* c) {
 
+}
+
+
+/** */
+int module_register_api(redis_server_t* server ,const char *funname, void *funcptr) {
+    printf("register api %p %s\n", server->module_api, funname);
+    return dict_add(server->module_api, (char*)funname, funcptr);
+}
+
+#define REGISTER_API(server, name) \
+    module_register_api(server, "redis_module_" #name, (void *)(unsigned long)redis_module_use_ ## name)
+
+
+
+/* server.moduleapi dictionary type. Only uses plain C strings since
+ * this gets queries from modules. */
+
+uint64_t dict_cstring_key_hash(const void *key) {
+    return dict_gen_hash_function((unsigned char*)key, strlen((char*)key));
+}
+
+int dict_cstring_key_compare(dict_t *privdata, const void *key1, const void *key2) {
+    UNUSED(privdata);
+    return strcmp(key1,key2) == 0;
+}
+
+
+dict_func_t module_api_dict_type = {
+    dict_cstring_key_hash,        /* hash function */
+    NULL,                      /* key dup */
+    NULL,                      /* val dup */
+    dict_cstring_key_compare,     /* key compare */
+    NULL,                      /* key destructor */
+    NULL,                      /* val destructor */
+    NULL                       /* allow to expand */
+};
+
+
+void* redis_module_use_malloc(size_t bytes) {
+    return zmalloc(bytes);
+}
+
+void* redis_module_use_calloc(size_t nmemb, size_t size) {
+    return zcalloc(nmemb*size);
+}
+
+void* redis_module_use_realloc(void* ptr, size_t bytes) {
+    return zrealloc(ptr, bytes);
+}
+
+void redis_module_use_free(void* ptr) {
+    zfree(ptr);
+}
+
+void module_free_context(redis_module_ctx_t* ctx) {
+
+}
+
+void redis_module_command_dispatcher(redis_client_t* c) {
+    redis_module_command_proxy_t* cp = (void*)(unsigned long)c->cmd->get_keys_proc;
+    redis_module_ctx_t ctx = REDIS_MODULE_CTX_INIT;
+    ctx.flags |=  REDIS_MODULE_CTX_MODULE_COMMAND_CALL;
+    ctx.module = cp->module;
+    ctx.server = c->client.server;
+    ctx.client = c;
+    printf("exec ???\n");
+    cp->func(&ctx, (void**)c->argv, c->argc);
+    module_free_context(&ctx);
+
+    /* In some cases processMultibulkBuffer uses sdsMakeRoomFor to
+     * expand the query buffer, and in order to avoid a big object copy
+     * the query buffer SDS may be used directly as the SDS string backing
+     * the client argument vectors: sometimes this will result in the SDS
+     * string having unused space at the end. Later if a module takes ownership
+     * of the RedisString, such space will be wasted forever. Inside the
+     * Redis core this is not a problem because tryObjectEncoding() is called
+     * before storing strings in the key space. Here we need to do it
+     * for the module. */
+
+    // for (int i = 0; i < c->argc; i++) {
+    //     /* Only do the work if the module took ownership of the object:
+    //      * in that case the refcount is no longer 1. */
+    //     if (c->argv[i]->refcount > 1)
+    //         trimStringObjectIfNeeded(c->argv[i]);
+    // }
+}
+
+int64_t command_flags_from_string(char* s) {
+    int count, j;
+    int64_t flags = 0;
+    sds *tokens = sds_split_len(s, strlen(s), " ", 1, &count);
+    for (j = 0; j < count; j++) {
+        char* t = tokens[j];
+        if (!strcasecmp(t,"write")) flags |= CMD_WRITE;
+        else if (!strcasecmp(t,"readonly")) flags |= CMD_READONLY;
+        else if (!strcasecmp(t,"admin")) flags |= CMD_ADMIN;
+        else if (!strcasecmp(t,"deny-oom")) flags |= CMD_DENYOOM;
+        else if (!strcasecmp(t,"deny-script")) flags |= CMD_NOSCRIPT;
+        else if (!strcasecmp(t,"allow-loading")) flags |= CMD_LOADING;
+        else if (!strcasecmp(t,"pubsub")) flags |= CMD_PUBSUB;
+        else if (!strcasecmp(t,"random")) flags |= CMD_RANDOM;
+        else if (!strcasecmp(t,"allow-stale")) flags |= CMD_STALE;
+        else if (!strcasecmp(t,"no-monitor")) flags |= CMD_SKIP_MONITOR;
+        else if (!strcasecmp(t,"no-slowlog")) flags |= CMD_SKIP_SLOWLOG;
+        else if (!strcasecmp(t,"fast")) flags |= CMD_FAST;
+        else if (!strcasecmp(t,"no-auth")) flags |= CMD_NO_AUTH;
+        else if (!strcasecmp(t,"may-replicate")) flags |= CMD_MAY_REPLICATE;
+        else if (!strcasecmp(t,"getkeys-api")) flags |= CMD_MODULE_GETKEYS;
+        else if (!strcasecmp(t,"no-cluster")) flags |= CMD_MODULE_NO_CLUSTER;
+        else if (!strcasecmp(t,"swap-nop")) continue;
+        else if (!strcasecmp(t,"swap-get")) continue;
+        else if (!strcasecmp(t,"swap-put")) continue;
+        else if (!strcasecmp(t,"swap-del")) continue;
+        else break;
+    }
+    sds_free_splitres(tokens, count);
+    if (j != count) return -1;
+    return flags;
+}
+
+int redis_module_use_create_command(redis_module_ctx_t* ctx, const char* name,  redis_module_cmd_func cmdfunc, redis_module_get_swaps_func getkeyrequests_func, const char *strflags, int firstkey, int lastkey, int keystep) {
+    int64_t flags = strflags ? command_flags_from_string((char*)strflags): 0;
+    if (flags == -1) return -1;
+//     if ((flags & CMD_MODULE_NO_CLUSTER) && server.cluster_enabled)
+//         return -1;
+
+    // int intention = strflags ? swap_action_from_string((char*)strflags) : 0;
+    // if (intention == -1) return -1;
+
+    struct redis_command_t *rediscmd;
+    redis_module_command_proxy_t *cp;
+
+    sds cmdname = sds_new(name);
+
+    if (lookup_command(ctx->server, cmdname) != NULL) {
+        sds_delete(cmdname);
+        return -1;
+    }
+    redis_get_key_requests_proc_func get_key_requests_proc = (redis_get_key_requests_proc_func)getkeyrequests_func;
+    cp = zmalloc(sizeof(*cp));
+    cp->module = ctx->module;
+    cp->func = cmdfunc;
+    cp->redis_cmd = zmalloc(sizeof(*rediscmd));
+    cp->redis_cmd->name = cmdname;
+    cp->redis_cmd->proc = redis_module_command_dispatcher;  //对外执行函数
+    cp->redis_cmd->arity = -1;
+    cp->redis_cmd->flags = flags | CMD_MODULE;
+    cp->redis_cmd->intention = 0;
+    cp->redis_cmd->get_keys_proc = (redis_get_keys_proc_func*)(unsigned long)cp;
+    cp->redis_cmd->get_key_requests_proc = &get_key_requests_proc;
+    cp->redis_cmd->firstkey = firstkey;
+    cp->redis_cmd->lastkey = lastkey;
+    cp->redis_cmd->keystep = keystep;
+    cp->redis_cmd->microseconds = 0;
+    cp->redis_cmd->calls = 0;
+    cp->redis_cmd->rejected_calls = 0;
+    cp->redis_cmd->failed_calls = 0;
+    dict_add(ctx->server->commands, sds_dup(cmdname), cp->redis_cmd);
+    // dict_add(ctx->server->orig_commands, sds_dup(cmdname), cp->redis_cmd);
+    cp->redis_cmd->id = acl_get_command_id(cmdname);
+    return 0;
+}
+
+/* Return non-zero if the module name is busy.
+ * Otherwise zero is returned. */
+int redis_module_use_is_module_name_busy(redis_module_ctx_t* ctx,const char *name) {
+    sds modulename = sds_new(name);
+    dict_entry_t *de = dict_find(ctx->server->modules,modulename);
+    sds_delete(modulename);
+    return de != NULL;
+}
+
+
+latte_client_t* module_get_reply_client(redis_module_ctx_t* ctx) {
+    return ctx->client;
+}
+
+int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const char* msg) {
+    latte_client_t* c = module_get_reply_client(ctx);
+    if (c == NULL) return 0;
+    printf("redis_module_use_reply_with_simple_string\n");
+    add_reply_proto(c, "+", 1);
+    add_reply_proto(c, msg, strlen(msg));
+    add_reply_proto(c, "\r\n", 2);
+    return 0;
+}
+
+/* --------------------------------------------------------------------------
+ * ## Module information and time measurement
+ * -------------------------------------------------------------------------- */
+
+void redis_module_use_set_module_attribs(redis_module_ctx_t *ctx, const char *name, int ver, int apiver) {
+    /* Called by RM_Init() to setup the `ctx->module` structure.
+     *
+     * This is an internal function, Redis modules developers don't need
+     * to use it. */
+    redis_module_t *module;
+
+    if (ctx->module != NULL) return;
+    module = zmalloc(sizeof(*module));
+    module->name = sds_new((char*)name);
+    module->ver = ver;
+    module->apiver = apiver;
+    module->types = list_new();
+    module->usedby = list_new();
+    module->using = list_new();
+    module->filters = list_new();
+    module->in_call = 0;
+    module->in_hook = 0;
+    module->options = 0;
+    module->info_cb = 0;
+    module->defrag_cb = 0;
+    ctx->module = module;
+}
+
+
+void module_register_core_api(redis_server_t* server) {
+    server->module_api = dict_new(&module_api_dict_type);
+    REGISTER_API(server, malloc);
+    REGISTER_API(server, calloc);
+    REGISTER_API(server, realloc);
+    REGISTER_API(server, free);
+    REGISTER_API(server, create_command);
+    REGISTER_API(server, is_module_name_busy);
+    REGISTER_API(server, get_api);
+    REGISTER_API(server, set_module_attribs);
+    REGISTER_API(server, reply_with_simple_string);
 }

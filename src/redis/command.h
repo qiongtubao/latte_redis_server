@@ -14,6 +14,28 @@
 #define CMD_CALL_NOWRAP (1<<4)  /* Don't wrap also propagate array into
                                            MULTI/EXEC: the caller will handle it.  */
  
+/* Command flags. Please check the command table defined in the server.c file
+ * for more information about the meaning of every flag. */
+#define CMD_WRITE (1ULL<<0)            /* "write" flag */
+#define CMD_READONLY (1ULL<<1)         /* "read-only" flag */
+#define CMD_DENYOOM (1ULL<<2)          /* "use-memory" flag */
+#define CMD_MODULE (1ULL<<3)           /* Command exported by module. */
+#define CMD_ADMIN (1ULL<<4)            /* "admin" flag */
+#define CMD_PUBSUB (1ULL<<5)           /* "pub-sub" flag */
+#define CMD_NOSCRIPT (1ULL<<6)         /* "no-script" flag */
+#define CMD_RANDOM (1ULL<<7)           /* "random" flag */
+#define CMD_SORT_FOR_SCRIPT (1ULL<<8)  /* "to-sort" flag */
+#define CMD_LOADING (1ULL<<9)          /* "ok-loading" flag */
+#define CMD_STALE (1ULL<<10)           /* "ok-stale" flag */
+#define CMD_SKIP_MONITOR (1ULL<<11)    /* "no-monitor" flag */
+#define CMD_SKIP_SLOWLOG (1ULL<<12)    /* "no-slowlog" flag */
+#define CMD_ASKING (1ULL<<13)          /* "cluster-asking" flag */
+#define CMD_FAST (1ULL<<14)            /* "fast" flag */
+#define CMD_NO_AUTH (1ULL<<15)         /* "no-auth" flag */
+#define CMD_MAY_REPLICATE (1ULL<<16)   /* "may-replicate" flag */
+/* Command flags used by the module system. */
+#define CMD_MODULE_GETKEYS (1ULL<<17)  /* Use the modules getkeys interface. */
+#define CMD_MODULE_NO_CLUSTER (1ULL<<18) /* Deny on Redis Cluster. */
 
 
 typedef struct redis_client_t redis_client_t;
@@ -45,6 +67,6 @@ typedef struct redis_command_t {
     int id;
 
 } redis_command_t;
-
+unsigned long acl_get_command_id(const char *cmdname);
 
 #endif
