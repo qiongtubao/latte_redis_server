@@ -21,6 +21,7 @@ typedef struct redis_server_t {
 
     /** module */
     dict_t* modules;
+    dict_t* module_api;
     
     /* config */
     long long proto_max_bulk_len;
@@ -41,6 +42,7 @@ extern struct shared_objects_t shared;
 
 
 /** commands */
+void module_register_core_api(redis_server_t* server);
 void module_help_command(redis_client_t* c);
 void module_list_command(redis_client_t* c);
 void module_load_command(redis_client_t* c);

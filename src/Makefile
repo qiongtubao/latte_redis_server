@@ -23,5 +23,5 @@ all: latte_lib $(OBJS)
 
 clean:
 	cd ../deps/latte_c && make clean_all 
-	rm -rf *.o 
+	rm -rf *.o  redis/*.o 
 	rm -rf main
