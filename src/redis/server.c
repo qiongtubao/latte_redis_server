@@ -3,6 +3,9 @@
 #include "server.h"
 #include "client.h"
 #include "dict/dict_plugins.h"
+#include "debug/latte_debug.h"
+#include "server/crons.h"
+#include "utils/utils.h"
 /** utils  **/
 /* Given the filename, return the absolute path as an SDS string, or NULL
  * if it fails for some reason. Note that "filename" may be an absolute path
@@ -105,6 +108,7 @@ void init_shared_objects() {
     shared.crlf = latte_object_new(OBJ_STRING,sds_new("\r\n"));
     shared.ok = latte_object_new(OBJ_STRING,sds_new("+OK\r\n"));
     shared.pong = latte_object_new(OBJ_STRING,sds_new("+PONG\r\n"));
+    shared.wrongtypeerr = latte_object_new(OBJ_STRING, sds_new("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"));
     for (j = 0; j < OBJ_SHARED_BULKHDR_LEN; j++) {
         shared.mbulkhdr[j] = latte_object_new(OBJ_STRING,
             sds_cat_printf(sds_empty(),"*%d\r\n",j));
@@ -112,6 +116,9 @@ void init_shared_objects() {
             sds_cat_printf(sds_empty(),"$%d\r\n",j));
     }
 }
+
+
+
 /** About latte RedisServer **/
 int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv) {
     log_init();
@@ -151,7 +158,12 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     redis_server->server.createClient = create_redis_client;
     redis_server->server.freeClient = redis_client_delete;
     redis_server->server.bind = config_get_array(redis_server->config, "bind");
+    redis_server->hz = 10;//config_get_int64(redis_server->config, "hz");
+    redis_server->db_num = 16;
     LATTE_LIB_LOG(LOG_INFO, "init redis server config");
+    init_redis_server_dbs(redis_server);
+    update_cache_time(redis_server);
+    init_redis_server_crons(redis_server);
     start_latte_server(&redis_server->server);
     return 1;
 fail:

@@ -7,6 +7,7 @@
 #include <string.h>
 #define REDISMODULE_CORE 1
 #include "redis_module.h"
+#include "object/string.h"
 
 #define REDIS_MODULE_CTX_AUTO_MEMORY (1<<0)
 #define REDIS_MODULE_CTX_KEYS_POS_REQUEST (1<<1)
@@ -122,7 +123,6 @@ void module_list_command(redis_client_t* c) {
 
 /** */
 int module_register_api(redis_server_t* server ,const char *funname, void *funcptr) {
-    printf("register api %p %s\n", server->module_api, funname);
     return dict_add(server->module_api, (char*)funname, funcptr);
 }
 
@@ -182,7 +182,6 @@ void redis_module_command_dispatcher(redis_client_t* c) {
     ctx.module = cp->module;
     ctx.server = c->client.server;
     ctx.client = c;
-    printf("exec ???\n");
     cp->func(&ctx, (void**)c->argv, c->argc);
     module_free_context(&ctx);
 
@@ -290,18 +289,69 @@ int redis_module_use_is_module_name_busy(redis_module_ctx_t* ctx,const char *nam
 }
 
 
-latte_client_t* module_get_reply_client(redis_module_ctx_t* ctx) {
+redis_client_t* module_get_reply_client(redis_module_ctx_t* ctx) {
     return ctx->client;
 }
 
 int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const char* msg) {
     latte_client_t* c = module_get_reply_client(ctx);
     if (c == NULL) return 0;
-    printf("redis_module_use_reply_with_simple_string\n");
     add_reply_proto(c, "+", 1);
     add_reply_proto(c, msg, strlen(msg));
     add_reply_proto(c, "\r\n", 2);
     return 0;
+}
+
+dict_entry_t* redis_module_use_lookup_key(redis_module_ctx_t* ctx, latte_object_t* key) {
+    redis_client_t* c = module_get_reply_client(ctx);
+    redis_server_t* server =  (redis_server_t* )c->client.server;
+    sds key_ptr = latte_object_string_get_sds(key);
+    redis_db_t* db = server->dbs + c->dbid;
+    return kv_store_dict_find(db->keys, get_kv_store_index_for_key(key_ptr) , key_ptr);
+}
+
+void redis_module_use_object_incr_count(latte_object_t* o) {
+    latte_object_incr_ref_count(o);
+}
+
+void redis_module_use_object_decr_count(latte_object_t* o) {
+    latte_object_decr_ref_count(o);
+}
+
+int redis_module_use_db_add(redis_module_ctx_t* ctx, latte_object_t* key, latte_object_t* val) {
+    redis_client_t* c = module_get_reply_client(ctx);
+    redis_server_t* server =  (redis_server_t*)c->client.server;
+    redis_db_t* db = server->dbs + c->dbid;
+    return db_add_key_value(server, db, key, val);
+}
+
+latte_object_t* redis_module_use_db_entry_get_value(dict_entry_t* de) {
+    return dict_get_entry_val(de);
+}
+
+latte_object_t* redis_module_use_db_entry_set_value(dict_entry_t* de, latte_object_t* value) {
+    latte_object_t* old = dict_get_entry_val(de);
+    latte_object_decr_ref_count(old);
+    dict_get_entry_val(de) = value;
+}
+
+int redis_module_use_object_is_string(latte_object_t* o) {
+    return o->type == OBJ_STRING;
+}
+
+void redis_module_use_reply_with_wrong_type_error(redis_module_ctx_t* ctx)  {
+    redis_client_t* c = module_get_reply_client(ctx);
+    add_reply(c, shared.wrongtypeerr);
+}
+
+void redis_module_use_reply_with_null(redis_module_ctx_t* ctx)  {
+    redis_client_t* c = module_get_reply_client(ctx);
+    add_reply_proto(c, "*-1\r\n", 5);
+}
+
+void redis_module_use_reply_with_object(redis_module_ctx_t* ctx, latte_object_t* o)  {
+    redis_client_t* c = module_get_reply_client(ctx);
+    add_reply(c, o);
 }
 
 /* --------------------------------------------------------------------------
@@ -344,4 +394,14 @@ void module_register_core_api(redis_server_t* server) {
     REGISTER_API(server, get_api);
     REGISTER_API(server, set_module_attribs);
     REGISTER_API(server, reply_with_simple_string);
+    REGISTER_API(server, lookup_key);
+    REGISTER_API(server, object_incr_count);
+    REGISTER_API(server, object_decr_count);
+    REGISTER_API(server, db_add);
+    REGISTER_API(server, db_entry_get_value);
+    REGISTER_API(server, db_entry_set_value);
+    REGISTER_API(server, object_is_string);
+    REGISTER_API(server, reply_with_wrong_type_error);
+    REGISTER_API(server, reply_with_null);
+    REGISTER_API(server, reply_with_object);
 }
