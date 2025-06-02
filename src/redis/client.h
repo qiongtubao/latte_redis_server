@@ -62,6 +62,7 @@ typedef struct redis_client_t {
     unsigned long long reply_bytes;
     sds pending_querybuf;
     long long repl_ack_time;
+    int dbid;
 } redis_client_t;
 
 latte_client_t* create_redis_client();

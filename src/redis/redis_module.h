@@ -47,7 +47,8 @@ struct redis_module_ctx_t;
 typedef struct redis_module_ctx_t redis_module_ctx_t;
 typedef struct redis_module_string_t redis_module_string_t;
 typedef struct redis_module_get_swaps_result_t redis_module_get_swaps_result_t;
-
+typedef struct redis_module_db_entry_t redis_module_db_entry_t;
+typedef struct redis_module_object_t redis_module_object_t;
 
 typedef void (*redis_module_get_swaps_func) (redis_module_ctx_t *ctx, redis_module_string_t **argv, int argc, redis_module_get_swaps_result_t *result);
 typedef int (*redis_module_cmd_func)(redis_module_ctx_t *ctx, redis_module_string_t **argv, int argc);
@@ -56,6 +57,16 @@ REDISMODULE_API int (*redis_module_create_command)(redis_module_ctx_t *ctx, cons
 REDISMODULE_API int (*redis_module_is_module_name_busy)(redis_module_ctx_t* ctx, const char *name) REDISMODULE_ATTR;
 REDISMODULE_API void (*redis_module_set_module_attribs)(redis_module_ctx_t *ctx, const char *name, int ver, int apiver) REDISMODULE_ATTR;
 REDISMODULE_API int (*redis_module_reply_with_simple_string)(redis_module_ctx_t *ctx, const char *msg) REDISMODULE_ATTR;
+REDISMODULE_API redis_module_db_entry_t* (*redis_module_lookup_key)(redis_module_ctx_t* ctx, redis_module_string_t* key) REDISMODULE_ATTR;
+REDISMODULE_API void (*redis_module_object_incr_count)(redis_module_object_t* o)  REDISMODULE_ATTR;
+REDISMODULE_API void (*redis_module_object_decr_count)(redis_module_object_t* o)  REDISMODULE_ATTR;
+REDISMODULE_API int (*redis_module_db_add)(redis_module_ctx_t *ctx, redis_module_string_t* key, redis_module_string_t* val)  REDISMODULE_ATTR;
+REDISMODULE_API redis_module_object_t* (*redis_module_db_entry_get_value)(redis_module_db_entry_t* val)  REDISMODULE_ATTR;
+REDISMODULE_API int (*redis_module_db_entry_set_value)(redis_module_db_entry_t* entry, redis_module_object_t* o) REDISMODULE_ATTR;
+REDISMODULE_API int (*redis_module_object_is_string)(redis_module_object_t* val)  REDISMODULE_ATTR;
+REDISMODULE_API void (*redis_module_reply_with_wrong_type_error)(redis_module_ctx_t* ctx) REDISMODULE_ATTR;
+REDISMODULE_API void (*redis_module_reply_with_null)(redis_module_ctx_t* ctx) REDISMODULE_ATTR;
+REDISMODULE_API void (*redis_module_reply_with_object)(redis_module_ctx_t* ctx, redis_module_object_t* obj) REDISMODULE_ATTR;
 
 
 static int redis_module_init(redis_module_ctx_t *ctx, const char *name, int ver, int apiver) REDISMODULE_ATTR_UNUSED;
@@ -67,6 +78,16 @@ static int redis_module_init(redis_module_ctx_t *ctx, const char *name, int ver,
     REDIS_MODULE_GET_API(ctx, get_api);
     REDIS_MODULE_GET_API(ctx, set_module_attribs);
     REDIS_MODULE_GET_API(ctx, reply_with_simple_string);
+    REDIS_MODULE_GET_API(ctx, lookup_key);
+    REDIS_MODULE_GET_API(ctx, db_add);
+    REDIS_MODULE_GET_API(ctx, db_entry_get_value);
+    REDIS_MODULE_GET_API(ctx, db_entry_set_value);
+    REDIS_MODULE_GET_API(ctx, object_is_string);
+    REDIS_MODULE_GET_API(ctx, object_incr_count);
+    REDIS_MODULE_GET_API(ctx, object_decr_count);
+    REDIS_MODULE_GET_API(ctx, reply_with_wrong_type_error);
+    REDIS_MODULE_GET_API(ctx, reply_with_null);
+    REDIS_MODULE_GET_API(ctx, reply_with_object);
     #ifdef REDISMODULE_EXPERIMENTAL_API
     #endif
 
@@ -78,6 +99,7 @@ static int redis_module_init(redis_module_ctx_t *ctx, const char *name, int ver,
 #else 
     
 #define redis_module_string_t latte_object_t
+#define redis_module_object_t latte_object_t
 #define redis_module_get_swaps_result_t get_key_requests_result_t
 #endif
 

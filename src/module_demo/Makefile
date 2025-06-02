@@ -14,22 +14,15 @@ endif
 
 .SUFFIXES: .c .so .xo .o
 
-all: latte.so 
-
-# .c.xo:
-# 	$(CC) -I. $(CFLAGS) $(SHOBJ_CFLAGS) -fPIC -c $< -o $@
+all: hello.so 
 
 .c.xo:
-	$(CC) $(CFLAGS)  -c $< -o $@
+	$(CC) -I. $(CFLAGS) $(SHOBJ_CFLAGS) -fPIC -c $< -o $@
 
-latte.xo: ../redis/redis_module.h 
+hello.xo: ../redis/redis_module.h 
 
-
-string.xo: ../redis/redis_module.h 
-
-
-latte.so: string.xo latte.xo 
-	$(CC) -o $@ $^ $(SHOBJ_LDFLAGS) $(LIBS) -lc -lpthread
+hello.so: hello.xo
+	$(CC) -o $@ $< $(SHOBJ_LDFLAGS) $(LIBS) -lc -lpthread
 
 clean:
 	rm -rf *.xo *.so

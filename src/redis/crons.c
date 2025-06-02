@@ -1,37 +1,15 @@
+
 #include "crons.h"
-#include <stdio.h>
-#include <zmalloc/zmalloc.h>
-crons_t* crons_new() {
-    crons_t* c = zmalloc(sizeof(crons_t));
-    c->cronloops = 0;
-    c->crons = list_new();
-    return c;
+#include "utils/utils.h"
+
+void update_cache_time(struct latte_server_t* server) {
+    redis_server_t* redis_server = (redis_server_t*)server;
+    redis_server->unixtime = ustime();
 }
 
-
-
-int addCron(crons_t* cs, cron_t* c) {
-    
-}
-
-int removeCron(crons_t* cs, cron_t* c) {
-
-}
-
-cron_t* cron_new(long long period, exec_cron_fn* fn) {
-    cron_t* c = zmalloc(sizeof(cron_t));
-    c->period = period;
-    c->fn = fn;
-    return c;
-}
-
-int cronloop(crons_t* cs, void* p) {
-    // listIter* iter = listGetIterator(cs->crons);
-    // while ((node = listNext(iter)) != NULL) {
-    //    cron* c = listNodeValue(node);
-    //    c.fn(p);
-    // }
-    // listReleaseIterator(iter);
-    // c.cronloops++;
-    return 1;
+int init_redis_server_crons(struct redis_server_t* redis_server) {
+    init_server_crons(redis_server);
+    cron_t* updateCacheTimeCron = cron_new(1, update_cache_time);
+    crons_add(redis_server->server.crons, updateCacheTimeCron);
+    return 0;
 }
