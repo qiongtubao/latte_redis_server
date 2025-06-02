@@ -12,7 +12,3 @@ then
     exit 1
 fi
 $TCLSH tests/test_main.tcl "${@}"
-<<<<<<< HEAD
-=======
-
->>>>>>> 0bd9de9 (add tcl test)
