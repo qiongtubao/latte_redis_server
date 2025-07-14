@@ -183,6 +183,14 @@ func hmsetCommand(conn redis.Conn, key, cmd_parse string) (e error) {
 	return
 }
 
+func pingCommand(conn redis.Conn, key, cmd_parse string) (e error) {
+	_, err := conn.Do("PING")
+	if err != nil {
+		return err
+	}
+	return
+}
+
 func hgetallCommand(conn redis.Conn, key, cmd_parse string) (e error) {
 	_, err := conn.Do("HGETALL", key)
 	if err != nil {
@@ -233,7 +241,31 @@ func getCommand(conn redis.Conn, key, cmd_parse string) (e error) {
 	return
 }
 
+func mgetCommand(conn redis.Conn, cmd_parse, key_prefix string, random_max int) (e error) {
+	args := []interface{}{}
+	splits := strings.Split(cmd_parse, "-")
+	if len(splits) == 0 {
+		return fmt.Errorf("not find mget key count ")
+	}
+	key_size, err := strconv.Atoi(splits[0])
+	if err != nil {
+		return err
+	}
+	for i := 0; i < key_size; i++ {
+		args = append(args, fmt.Sprintf("%v:%v", key_prefix, randomString(random_max)))
+	}
+	_, err = redis.Strings(conn.Do("MGET", args...))
+	if err != nil {
+		return err
+	}
+	return
+}
+
+var benchcommands = map[string]func(conn redis.Conn, cmd_parse, key_prefix string, random_max int) error{
+	"mget": mgetCommand,
+}
 var commands = map[string]func(conn redis.Conn, key, cmd_parse string) error{
+	"ping":    pingCommand,
 	"set":     setCommand,
 	"get":     getCommand,
 	"hmset":   hmsetCommand,
@@ -248,7 +280,9 @@ func parseCommand(cmdstr string) (cmd string, cmd_parse string, err error) {
 		return
 	}
 	cmd = strs[0]
-	if _, exists := commands[cmd]; !exists {
+	_, exists := commands[cmd]
+	_, bench_exists := benchcommands[cmd]
+	if !exists && !bench_exists {
 		err = errors.New("command not supported")
 		return
 	}
@@ -381,8 +415,6 @@ func dobench(hostPort, passwd string, nkey, nthd int, cmd string, cmd_args strin
 						}
 					}
 
-					key := fmt.Sprintf("%v:%v", prefix, thd*nkeyPerThd+randArr[j])
-
 					if rl != nil {
 						rl.Take()
 					}
@@ -391,7 +423,15 @@ func dobench(hostPort, passwd string, nkey, nthd int, cmd string, cmd_args strin
 					// if multi {
 					// 	_, err = redis.
 					// }
-					if handler, exists := commands[cmd]; exists {
+					if handler, exists := benchcommands[cmd]; exists {
+						err = handler(con, cmd_args, prefix, nkey)
+						if err != nil {
+							if err != redis.ErrNil {
+								errorHappen = true
+							}
+						}
+					} else if handler, exists := commands[cmd]; exists {
+						key := fmt.Sprintf("%v:%v", prefix, thd*nkeyPerThd+randArr[j])
 						err = handler(con, key, cmd_args)
 						if err != nil {
 							if err != redis.ErrNil {
@@ -444,6 +484,7 @@ func main() {
 	cmd, cmd_args, err := parseCommand(cmdstr)
 
 	if err != nil {
+		fmt.Printf("err:%v \n", err)
 		usage()
 		return
 	}
