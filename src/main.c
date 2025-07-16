@@ -5,8 +5,11 @@
 #include "env.h"
 #include "sds/sds.h"
 #include <string.h>
+#include "server/server.h"
+
 
 struct redis_server_t redis_server;
+
 
 
 sds* parseArgv(int argc, char** argv, int* len) {
