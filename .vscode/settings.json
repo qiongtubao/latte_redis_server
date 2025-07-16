@@ -29,7 +29,12 @@
         "crc64.h": "c",
         "string.h": "c",
         "sha256.h": "c",
-        "atomicvar.h": "c"
+        "atomicvar.h": "c",
+        "object.h": "c",
+        "__locale": "c",
+        "server.h": "c",
+        "ios": "c",
+        "monotonic.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

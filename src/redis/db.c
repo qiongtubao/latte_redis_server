@@ -21,7 +21,8 @@ int db_add_key_value(redis_server_t* server,redis_db_t* db, latte_object_t* key,
 
 
 int db_set_value(redis_server_t* server,redis_db_t* db, latte_object_t* key, latte_object_t* val, int overwrite, dict_entry_t* de) {
-    sds key_ptr = latte_object_string_get_sds(key);
+    sds key_ptr;
+    latte_assert_with_info(get_sds_from_object(key, &key_ptr) == 0, "key is not a string");
     int dict_index = get_kv_store_index_for_key(key_ptr);
     if (!de) de = kv_store_dict_find(db->keys, dict_index, key_ptr);
     latte_assert_with_info(de != NULL, "[db_set_value] kv_store dict unfind key %s", key_ptr);
@@ -29,7 +30,7 @@ int db_set_value(redis_server_t* server,redis_db_t* db, latte_object_t* key, lat
     val->lru = old->lru;
 
     if (overwrite) {
-        latte_assert(0);
+        latte_assert_with_info(0, "overwrite is not supported");
         // latte_object_incr_ref_count(old);
         // // module_notify_key_unlink(key, old, db->id, DB_FLAG_KEY_OVERWRITE);
         // signal_deleted_key_as_ready(db, key, old->type);
@@ -84,13 +85,15 @@ void init_object_lru_or_lfu(redis_server_t* server, latte_object_t* o) {
 
 int db_add_key_value_internal(redis_server_t* server,redis_db_t* db, latte_object_t* key, latte_object_t* val, int update_if_existing) {
     dict_entry_t *existing;
-    int dict_index = get_kv_store_index_for_key(latte_object_string_get_sds(key));
+    sds key_ptr;
+    latte_assert_with_info(get_sds_from_object(key, &key_ptr) == 0, "key is not a string");// "key is not a string"
+    int dict_index = get_kv_store_index_for_key(key_ptr);
     dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, key->ptr, &existing);
     if (update_if_existing && existing) {
         db_set_value(server, db, key, val, 1, existing);
         return 1;
     }
-    latte_assert_with_info(de != NULL, "update fail %s", key);
+    latte_assert_with_info(de != NULL, "de is NULL");// 
     init_object_lru_or_lfu(server, val);
     kv_store_dict_set_val(db->keys, dict_index, de, val);
     // signal_key_as_ready(db, key, val->type);
@@ -138,7 +141,7 @@ static void cumulative_key_count_add(kv_store_t* kvs, int didx, long delta) {
     // 当当前索引 idx 还没有超过最大字典数量时，继续循环
     while (idx <= kvs->num_dicts) {
         if (delta < 0) {
-            latte_assert(kvs->dict_size_index[idx] >= (unsigned long long)labs(delta));
+            latte_assert_with_info(kvs->dict_size_index[idx] >= (unsigned long long)labs(delta), "kvs->dict_size_index[idx] is less than labs(delta)");
         }
         // 更新当前位置的值：加上 delta（可能是正也可能是负）
         kvs->dict_size_index[idx] += delta;
@@ -246,13 +249,13 @@ dict_func_t kv_store_expires_dict_type = {
 kv_store_t *kv_store_create(dict_func_t *type, int num_dicts_bits, int flags) {
     /* We can't support more than 2^16 dicts because we want to save 48 bits
      * for the dict cursor, see kvstoreScan */
-    latte_assert(num_dicts_bits <= 16);
+    latte_assert_with_info(num_dicts_bits <= 16, "num_dicts_bits is too large");
 
     /* The dictType of kvstore needs to use the specific callbacks.
      * If there are any changes in the future, it will need to be modified. */
     // assert(type->rehashingStarted == kvstoreDictRehashingStarted);
     // assert(type->rehashingCompleted == kvstoreDictRehashingCompleted);
-    latte_assert(type->dictEntryMetadataBytes == kv_store_dict_meta_data_size);
+    latte_assert_with_info(type->dictEntryMetadataBytes == kv_store_dict_meta_data_size, "type->dictEntryMetadataBytes is not equal to kv_store_dict_meta_data_size");
 
     kv_store_t *kvs = zcalloc(sizeof(*kvs));
     kvs->dtype = type;

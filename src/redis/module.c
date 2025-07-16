@@ -8,6 +8,7 @@
 #define REDISMODULE_CORE 1
 #include "redis_module.h"
 #include "object/string.h"
+#include "debug/latte_debug.h"
 
 #define REDIS_MODULE_CTX_AUTO_MEMORY (1<<0)
 #define REDIS_MODULE_CTX_KEYS_POS_REQUEST (1<<1)
@@ -305,7 +306,8 @@ int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const cha
 dict_entry_t* redis_module_use_lookup_key(redis_module_ctx_t* ctx, latte_object_t* key) {
     redis_client_t* c = module_get_reply_client(ctx);
     redis_server_t* server =  (redis_server_t* )c->client.server;
-    sds key_ptr = latte_object_string_get_sds(key);
+    sds key_ptr;
+    latte_assert(get_sds_from_object(key, &key_ptr) == 0);// "key is not a string"
     redis_db_t* db = server->dbs + c->dbid;
     return kv_store_dict_find(db->keys, get_kv_store_index_for_key(key_ptr) , key_ptr);
 }
