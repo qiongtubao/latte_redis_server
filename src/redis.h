@@ -27,6 +27,7 @@ typedef struct latte_redis_server_t {
     dict_t* robj_register;
     list_t* clients_pending_write;
     long long proto_max_bulk_len;   /* Protocol bulk length maximum size. */
+    long long unixtime;
 } latte_redis_server_t;
 
 
