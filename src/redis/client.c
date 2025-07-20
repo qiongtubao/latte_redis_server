@@ -447,7 +447,7 @@ int redis_client_handle(struct latte_client_t* lc, int nread) {
 
 latte_client_t* create_redis_client() {
     redis_client_t* redis_client = zmalloc(sizeof(redis_client_t));
-    redis_client->client.handle = redis_client_handle;
+    redis_client->client.exec = redis_client_handle;
     redis_client->dbid = 0;
     return (latte_client_t*)redis_client;
 }

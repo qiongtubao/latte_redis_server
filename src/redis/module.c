@@ -8,6 +8,7 @@
 #define REDISMODULE_CORE 1
 #include "redis_module.h"
 #include "object/string.h"
+#include "debug/latte_debug.h"
 
 #define REDIS_MODULE_CTX_AUTO_MEMORY (1<<0)
 #define REDIS_MODULE_CTX_KEYS_POS_REQUEST (1<<1)
@@ -35,7 +36,7 @@ static redis_client_t *module_free_context_reused_client;
 int redis_module_use_get_api(redis_module_ctx_t* ctx, const char* funcname, void **ptr) {
     dict_entry_t* he = dict_find(ctx->server->module_api, funcname);
     if (!he) return -1;
-    *ptr = dict_get_val(he);
+    *ptr = dict_get_entry_val(he);
     return 0;
 }
 
@@ -305,7 +306,8 @@ int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const cha
 dict_entry_t* redis_module_use_lookup_key(redis_module_ctx_t* ctx, latte_object_t* key) {
     redis_client_t* c = module_get_reply_client(ctx);
     redis_server_t* server =  (redis_server_t* )c->client.server;
-    sds key_ptr = latte_object_string_get_sds(key);
+    sds key_ptr;
+    latte_assert(get_sds_from_object(key, &key_ptr) == 0);// "key is not a string"
     redis_db_t* db = server->dbs + c->dbid;
     return kv_store_dict_find(db->keys, get_kv_store_index_for_key(key_ptr) , key_ptr);
 }
@@ -345,7 +347,7 @@ void redis_module_use_reply_with_wrong_type_error(redis_module_ctx_t* ctx)  {
 }
 
 void redis_module_use_reply_with_null(redis_module_ctx_t* ctx)  {
-    redis_client_t* c = module_get_reply_client(ctx);
+    struct redis_client_t* c = module_get_reply_client(ctx);
     add_reply_proto(c, "*-1\r\n", 5);
 }
 
