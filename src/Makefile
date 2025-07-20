@@ -17,11 +17,11 @@ ifeq ($(uname_S),Linux)
 	FINAL_SHARD_LIB=-lrt 
 endif
 
-latte_lib:
-	cd ../deps/latte_c && make build MODULES=$(LIB_MODUELS) 
+$(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a:
+	cd ../deps/latte_c && make build  MODULES=$(LIB_MODUELS) 
 
-%.o: %.c 
-	$(REDIS_CC) $(DEBUG) -MMD -o $@ -c $< -I../deps/latte_c/out/include 
+%.o: %.c $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a
+	$(REDIS_CC) $(DEBUG) -MMD -o $@ -c $< -I$(LATTE_LIB_WORKSPACE)/out/include 
 
 MAC_M1_CFLAGS=-fprofile-arcs -ftest-coverage
 
@@ -30,10 +30,10 @@ OBJS=version.o main.o help.o  env.o redis/config.o redis/server.o redis/crons.o 
 #OBJS=version.o main.o help.o  env.o redis_server/config.o redis.o redis_server/crons.o redis_server/client.o
 
 # -lstdc++
-all: latte_lib $(OBJS)
-	$(REDIS_CC) $(DEBUG) -o main $(OBJS) -I../deps/latte_c/out/include ../deps/latte_c/out/lib/liblatte.a  ../deps/latte_c/deps/jemalloc/lib/libjemalloc.a $(FINAL_SHARD_LIB) -lm  -ldl -lz -lstdc++ -lpthread $(MAC_M1_CFLAGS)
+all: $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a $(OBJS)
+	$(REDIS_CC) $(DEBUG) -o main $(OBJS) -I$(LATTE_LIB_WORKSPACE)/out/include -L$(LATTE_LIB_WORKSPACE)/out/lib $(FINAL_SHARD_LIB) -lm  -ldl -lz -lstdc++ -lpthread -llatte $(MAC_M1_CFLAGS)
 
 clean:
 	cd ../deps/latte_c && make clean_all 
-	rm -rf *.o  redis/*.o 
+	rm -rf *.o *.d redis/*.o redis/*.d
 	rm -rf main

@@ -36,7 +36,7 @@ static redis_client_t *module_free_context_reused_client;
 int redis_module_use_get_api(redis_module_ctx_t* ctx, const char* funcname, void **ptr) {
     dict_entry_t* he = dict_find(ctx->server->module_api, funcname);
     if (!he) return -1;
-    *ptr = dict_get_val(he);
+    *ptr = dict_get_entry_val(he);
     return 0;
 }
 
@@ -347,7 +347,7 @@ void redis_module_use_reply_with_wrong_type_error(redis_module_ctx_t* ctx)  {
 }
 
 void redis_module_use_reply_with_null(redis_module_ctx_t* ctx)  {
-    redis_client_t* c = module_get_reply_client(ctx);
+    struct redis_client_t* c = module_get_reply_client(ctx);
     add_reply_proto(c, "*-1\r\n", 5);
 }
 

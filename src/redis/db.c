@@ -26,7 +26,7 @@ int db_set_value(redis_server_t* server,redis_db_t* db, latte_object_t* key, lat
     int dict_index = get_kv_store_index_for_key(key_ptr);
     if (!de) de = kv_store_dict_find(db->keys, dict_index, key_ptr);
     latte_assert_with_info(de != NULL, "[db_set_value] kv_store dict unfind key %s", key_ptr);
-    latte_object_t* old = dict_get_val(de);
+    latte_object_t* old = dict_get_entry_val(de);
     val->lru = old->lru;
 
     if (overwrite) {
@@ -272,7 +272,6 @@ kv_store_t *kv_store_create(dict_func_t *type, int num_dicts_bits, int flags) {
         }
     } else {
         for (int i = 0; i < kvs->num_dicts; i++) {
-            LATTE_LIB_LOG(LL_INFO, "set NULL");
             kvs->dicts[i] = NULL;
         }
     }

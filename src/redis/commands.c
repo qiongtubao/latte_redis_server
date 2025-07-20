@@ -189,7 +189,6 @@ void ping_command(redis_client_t* c) {
         return;
     }
     if (c->argc == 1) {
-        LATTE_LIB_LOG(LL_INFO,"ping");
         add_reply(c, shared.pong);
     } else {
         add_reply_bulk(c, c->argv[1]);
@@ -246,8 +245,8 @@ unsigned long acl_get_command_id(const char *cmdname) {
     sds lowername = sds_new(cmdname);
     sds_to_lower(lowername);
     if (commandId == NULL) commandId = raxNew();
-    void *id = raxFind(commandId,(unsigned char*)lowername,sds_len(lowername));
-    if (id != raxNotFound) {
+    void *id;
+    if (raxFind(commandId,(unsigned char*)lowername,sds_len(lowername),&id)) {
         sds_delete(lowername);
         return (unsigned long)id;
     }
