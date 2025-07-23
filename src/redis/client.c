@@ -44,13 +44,15 @@ int process_command(redis_client_t* rc) {
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
     rc->cmd = rc->lastcmd = lookup_command(server, rc->argv[0]->ptr);
-    
+    if (rc->cmd == NULL) {
+        return -1;
+    } 
     call(rc, CMD_CALL_FULL);
     return 0;
 }
 
 void command_processed(redis_client_t* rc) {
-    
+    reset_redis_client(rc);
 }
 
 int process_command_and_reset_client(redis_client_t* rc) {
@@ -166,7 +168,7 @@ int process_multibulk_buffer(redis_client_t* rc) {
     redis_server_t* server = (redis_server_t*)rc->client.server;
     if (rc->multi_bulk_len == 0) {
         /* The client should have been reset */
-        //serverAssertWithInfo(rc,NULL,rc->argc == 0);
+        latte_assert_with_info(rc->argc == 0, "client argc ! = 0");
         /* Multi bulk length cannot be read without a \r\n */
         newline = strchr(rc->client.querybuf+rc->client.qb_pos,'\r');
         if (newline == NULL) {
@@ -183,7 +185,7 @@ int process_multibulk_buffer(redis_client_t* rc) {
 
         /* We know for sure there is a whole line since newline != NULL,
          * so go ahead and find out the multi bulk length. */
-        // serverAssertWithInfo(c,NULL,c->querybuf[c->qb_pos] == '*');
+        latte_assert_with_info(rc->client.querybuf[rc->client.qb_pos] == '*', "querybuf[0] != '*'");
         ok = string2ll(rc->client.querybuf + 1 + rc->client.qb_pos, newline - (rc->client.querybuf+1+rc->client.qb_pos),&ll);
         if (!ok || ll > 1024*1024) {
             add_reply_error(rc,"Protocol error: invalid multibulk length");
@@ -206,7 +208,7 @@ int process_multibulk_buffer(redis_client_t* rc) {
         rc->argv_len_sum = 0;
     }
 
-    // serverAssertWithInfo(rc,NULL,rc->multibulklen > 0);
+    latte_assert_with_info(rc->multi_bulk_len > 0, "rc->multibulklen = %d ", rc->multi_bulk_len);
     while(rc->multi_bulk_len) {
         /* Read bulk length if unknown */
         if (rc->bulk_len == -1) {
@@ -370,14 +372,14 @@ int redis_process_input_buffer(redis_client_t* rc) {
         if (rc->client.flags & (CLIENT_CLOSE_AFTER_REPLY|CLIENT_CLOSE_ASAP)) break;
         
         if (!rc->req_type) {
-            if (rc->client.querybuf[rc->client.qb_pos] == '*') {
+            if (rc->client.querybuf[rc->client.qb_pos] == '*') { //判定协议如果开头是* 就是redis协议
                 rc->req_type = PROTO_REQ_MULTIBULK;
             } else {
                 rc->req_type = PROTO_REQ_INLINE;
             }
         }
         
-        if (rc->req_type == PROTO_REQ_INLINE) {
+        if (rc->req_type == PROTO_REQ_INLINE) { //普通协议
             if (process_inline_buffer(rc) != 0) break;
             /* If the Gopher mode and we got zero or one argument, process
              * the request in Gopher mode. To avoid data race, Redis won't
@@ -391,7 +393,7 @@ int redis_process_input_buffer(redis_client_t* rc) {
         //         c->flags |= CLIENT_CLOSE_AFTER_REPLY;
         //         break;
         //     } 
-        } else if (rc->req_type == PROTO_REQ_MULTIBULK) {
+        } else if (rc->req_type == PROTO_REQ_MULTIBULK) { //redis协议
             if (process_multibulk_buffer(rc) != 0) break;
         } else {
             redis_panic("Unknown request type");
@@ -449,6 +451,8 @@ latte_client_t* create_redis_client() {
     redis_client_t* redis_client = zmalloc(sizeof(redis_client_t));
     redis_client->client.exec = redis_client_handle;
     redis_client->dbid = 0;
+    redis_client->multi_bulk_len = 0;
+    redis_client->bulk_len = -1; //非常重要 ！ ！ ！ redis协议命令解析用
     return (latte_client_t*)redis_client;
 }
 void redis_client_delete(latte_client_t* client) {

@@ -9,7 +9,7 @@ REDIS_MALLOC=libc
 REDIS_CC=$(QUIET_CC)$(CC) $(FINAL_CC_CFLAGS) $(FINAL_CC_LIBS)
 REDIS_GCC=$(QUIET_CC)$(CC) $(FINAL_CC_CFLAGS) $(FINAL_CC_LIBS)
 REDIS_LD=$(QUIET_LINK)$(CC) $(FINAL_LDFLAGS) $(FINAL_CC_LIBS)
-
+DEBUG=-g
 LIB_MODUELS="zset stream sds dict ae config list server io object lzf rax debug"
 
 
