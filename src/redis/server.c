@@ -97,6 +97,7 @@ dict_func_t modules_dict_type = {
 };
 
 void init_redis_server(struct redis_server_t* rs) {
+    rs->proto_max_bulk_len = 1024 * 1024;
     rs->clients_to_close = list_new();
     rs->commands = dict_new(&command_table_dict_type);
     rs->modules = dict_new(&modules_dict_type);

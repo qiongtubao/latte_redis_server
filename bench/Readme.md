@@ -8,3 +8,5 @@
     ./bench 127.0.0.1:6666 nopass set-{value size} {max-key} {preix} {thread} {limit}
 ### get
     ./bench 127.0.0.1:6666 nopass get {max-key}  {preix}  {thread} {limit}
+### mget
+    ./

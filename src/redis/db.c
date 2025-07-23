@@ -3,11 +3,9 @@
 #include "debug/latte_debug.h"
 #include "utils/utils.h"
 #include "dict/dict_plugins.h"
+#include "time/localtime.h"
 
 
-static long long mstime(void) {
-    return ustime()/1000;
-}
 
 int get_kv_store_index_for_key(sds key) {
     return 0;
