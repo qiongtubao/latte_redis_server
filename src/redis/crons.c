@@ -1,6 +1,7 @@
 
 #include "crons.h"
 #include "utils/utils.h"
+#include "time/localtime.h"
 
 void update_cache_time(redis_server_t* server) {
     server->unixtime = ustime();

@@ -51,6 +51,44 @@ int process_command(redis_client_t* rc) {
     return 0;
 }
 
+
+static void free_client_argv(redis_client_t* rc) {
+    int j;
+    for (j = 0; j < rc->argc; j++) 
+        latte_object_decr_ref_count(rc->argv[j]);
+    rc->argc = 0;
+    rc->cmd = NULL;
+    rc->argv_len_sum = 0;
+}
+
+void reset_redis_client(redis_client_t* rc) {
+    redis_command_proc_func*  prev_cmd = rc->cmd ?  rc->cmd->proc : NULL;
+    free_client_argv(rc);
+    rc->req_type = 0;
+    rc->multi_bulk_len = 0;
+    rc->bulk_len = -1;
+    // if (rc->swap_ctx) {
+        // swap_ctx_delete(rc->swap_ctx);
+    // }
+    
+    // if (!(rc->flag & CLIENT_MULTI) && prev_cmd != askingCommand) 
+    //      c->flags &= ~CLIENT_ASKING;
+    
+    // if (!(rc->flag & CLIENT_MULTI) && prev_cmd != clientCommand) 
+    //      c->flags &= ~CLIENT_TRACKING_CACHING;
+
+    /* Remove the CLIENT_REPLY_SKIP flag if any so that the reply
+     * to the next command will be sent, but set the flag if the command
+     * we just processed was "CLIENT REPLY SKIP". */
+    
+    // c->flags &= ~CLIENT_REPLY_SKIP;
+    // if (c->flags & CLIENT_REPLY_SKIP_NEXT) {
+    //     c->flags |= CLIENT_REPLY_SKIP;
+    //     c->flags &= ~CLIENT_REPLY_SKIP_NEXT;
+    // }
+
+}
+
 void command_processed(redis_client_t* rc) {
     reset_redis_client(rc);
 }
@@ -307,42 +345,9 @@ int process_multibulk_buffer(redis_client_t* rc) {
     return -1;
 }
 
-static void free_client_argv(redis_client_t* rc) {
-    int j;
-    for (j = 0; j < rc->argc; j++) 
-        latte_object_decr_ref_count(rc->argv[j]);
-    rc->argc = 0;
-    rc->cmd = NULL;
-    rc->argv_len_sum = 0;
-}
 
-void reset_redis_client(redis_client_t* rc) {
-    redis_command_proc_func*  prev_cmd = rc->cmd ?  rc->cmd->proc : NULL;
-    free_client_argv(rc);
-    rc->req_type = 0;
-    rc->multi_bulk_len = 0;
-    rc->bulk_len = -1;
-    // if (rc->swap_ctx) {
-        // swap_ctx_delete(rc->swap_ctx);
-    // }
-    
-    // if (!(rc->flag & CLIENT_MULTI) && prev_cmd != askingCommand) 
-    //      c->flags &= ~CLIENT_ASKING;
-    
-    // if (!(rc->flag & CLIENT_MULTI) && prev_cmd != clientCommand) 
-    //      c->flags &= ~CLIENT_TRACKING_CACHING;
 
-    /* Remove the CLIENT_REPLY_SKIP flag if any so that the reply
-     * to the next command will be sent, but set the flag if the command
-     * we just processed was "CLIENT REPLY SKIP". */
-    
-    // c->flags &= ~CLIENT_REPLY_SKIP;
-    // if (c->flags & CLIENT_REPLY_SKIP_NEXT) {
-    //     c->flags |= CLIENT_REPLY_SKIP;
-    //     c->flags &= ~CLIENT_REPLY_SKIP_NEXT;
-    // }
 
-}
 
 int redis_process_input_buffer(redis_client_t* rc) {
     //解析读取的数据 转换成object 对象
