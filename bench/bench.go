@@ -252,7 +252,7 @@ func mgetCommand(conn redis.Conn, cmd_parse, key_prefix string, random_max int) 
 		return err
 	}
 	for i := 0; i < key_size; i++ {
-		args = append(args, fmt.Sprintf("%v:%v", key_prefix, randomString(random_max)))
+		args = append(args, fmt.Sprintf("%v:%v", key_prefix, mrand.Intn(random_max)))
 	}
 	_, err = redis.Strings(conn.Do("MGET", args...))
 	if err != nil {
@@ -500,7 +500,7 @@ func main() {
 	key_prefix := flag.Arg(4)
 	// 参数6 线程数
 	nthd, _ := strconv.Atoi(flag.Arg(5))
-	redisPid, _ = getRedisPid(redisHostPort, passwd)
+	// redisPid, _ = getRedisPid(redisHostPort, passwd)
 
 	// 参数7 qps限制
 	if len(flag.Args()) > 6 {
