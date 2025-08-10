@@ -67,7 +67,7 @@ typedef struct redis_command_t {
     int id;
 
 } redis_command_t;
-unsigned long acl_get_command_id(const char *cmdname);
+
 
 
 typedef long long time_point_t;

@@ -6,6 +6,8 @@
 #include "server.h"
 #include "utils/utils.h"
 #include "object/string.h"
+#include "../shared/shared.h"
+
 int prepare_client_to_write(redis_client_t* c) {
     return 0;
 }

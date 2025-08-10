@@ -36,8 +36,9 @@ $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a:
 	$(REDIS_CC) $(DEBUG) -MMD -o $@ -c $< -I$(LATTE_LIB_WORKSPACE)/out/include 
 
 MAC_M1_CFLAGS=-fprofile-arcs -ftest-coverage
-
-OBJS=version.o main.o help.o  env.o redis_config/config.o redis/server.o redis/crons.o redis/client.o redis/commands.o redis/client_reply.o redis/module.o redis/db.o 
+REDIS_OBJS=redis/server.o redis/crons.o redis/client.o redis/client_reply.o redis/module.o redis/db.o
+COMMANDS_OBJS=commands/command_manager.o commands/module.o commands/info.o
+OBJS=version.o main.o help.o  env.o redis_config/config.o $(REDIS_OBJS) $(COMMANDS_OBJS) shared/shared.o
 
 #OBJS=version.o main.o help.o  env.o redis_server/config.o redis.o redis_server/crons.o redis_server/client.o
 
@@ -45,7 +46,10 @@ OBJS=version.o main.o help.o  env.o redis_config/config.o redis/server.o redis/c
 all: $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a $(OBJS)
 	$(REDIS_CC) $(DEBUG) -o main $(OBJS) -I$(LATTE_LIB_WORKSPACE)/out/include -I$(LATTE_LIB_WORKSPACE)/deps/jemalloc/include -L$(LATTE_LIB_WORKSPACE)/out/lib -lm  -ldl -lz -lstdc++ -lpthread -llatte $(FINAL_SHARD_LIB) $(MAC_M1_CFLAGS)
 
-clean:
+
+distclean:
 	cd ../deps/latte_c && make clean_all 
-	rm -rf *.o *.d redis/*.o redis/*.d redis_config/*.o redis_config/*.d
+
+clean:
+	rm -rf *.o *.d redis/*.o redis/*.d redis_config/*.o redis_config/*.d commands/*.o commands/*.d
 	rm -rf main

@@ -9,6 +9,7 @@
 #include "redis_module.h"
 #include "object/string.h"
 #include "debug/latte_debug.h"
+#include "../shared/shared.h"
 
 #define REDIS_MODULE_CTX_AUTO_MEMORY (1<<0)
 #define REDIS_MODULE_CTX_KEYS_POS_REQUEST (1<<1)
@@ -251,7 +252,7 @@ int redis_module_use_create_command(redis_module_ctx_t* ctx, const char* name,  
 
     sds cmdname = sds_new(name);
 
-    if (lookup_command(ctx->server, cmdname) != NULL) {
+    if (command_manager_lookup(ctx->server->command_manager, cmdname) != NULL) {
         sds_delete(cmdname);
         return -1;
     }
@@ -274,9 +275,8 @@ int redis_module_use_create_command(redis_module_ctx_t* ctx, const char* name,  
     cp->redis_cmd->calls = 0;
     cp->redis_cmd->rejected_calls = 0;
     cp->redis_cmd->failed_calls = 0;
-    dict_add(ctx->server->commands, sds_dup(cmdname), cp->redis_cmd);
     // dict_add(ctx->server->orig_commands, sds_dup(cmdname), cp->redis_cmd);
-    cp->redis_cmd->id = acl_get_command_id(cmdname);
+    command_manager_register_command(ctx->server->command_manager, cp->redis_cmd);
     return 0;
 }
 

@@ -2,6 +2,7 @@
 #define __REDIS_SERVER_H
 #include "server/server.h"
 #include "../redis_config/config.h"
+#include "../commands/command_manager.h"
 #include "sds/sds.h"
 #include "dict/dict.h"
 #include "command.h"
@@ -22,7 +23,7 @@ typedef struct redis_server_t {
     sds executable; /** execut file path **/
     sds configfile;
     config_manager_t* config;
-    dict_t* commands;
+    command_manager_t* command_manager;
     dict_t* robj_register;
     list_t* clients_to_close;
     time_t unixtime;
@@ -47,18 +48,10 @@ typedef struct redis_server_t {
 
 void update_cache_time(struct redis_server_t* server);
 int start_redis_server(redis_server_t* redis_server, int argc, sds* argv);
-void register_commands(struct redis_server_t* redis_server);
-redis_command_t* lookup_command(struct redis_server_t* server, sds command);
 int init_redis_server_crons(redis_server_t* redis_server);
 int init_redis_server_dbs(redis_server_t* redis_server);
 
-#define OBJ_SHARED_BULKHDR_LEN 32
-typedef struct shared_objects_t {
-   latte_object_t* crlf, *ok, *pong, *wrongtypeerr,
-   *mbulkhdr[OBJ_SHARED_BULKHDR_LEN], /* "*<value>\r\n" */
-   *bulkhdr[OBJ_SHARED_BULKHDR_LEN];  /* "$<value>\r\n" */
-} shared_objects_t;
-extern struct shared_objects_t shared;
+
 
 
 /** commands */

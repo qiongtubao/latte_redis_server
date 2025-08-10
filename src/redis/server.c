@@ -4,8 +4,8 @@
 #include "client.h"
 #include "dict/dict_plugins.h"
 #include "debug/latte_debug.h"
-
 #include "utils/utils.h"
+#include "../shared/shared.h"
 /** utils  **/
 /* Given the filename, return the absolute path as an SDS string, or NULL
  * if it fails for some reason. Note that "filename" may be an absolute path
@@ -76,15 +76,6 @@ int stopRedisServer(struct redis_server_t* server) {
     return 1;
 }
 
-dict_func_t command_table_dict_type = {
-    dict_sds_case_hash,
-    NULL,
-    NULL,
-    dict_sds_key_case_compare,
-    dict_sds_destructor,
-    NULL,
-    NULL
-};
 
 dict_func_t modules_dict_type = {
     dict_sds_case_hash,
@@ -99,24 +90,11 @@ dict_func_t modules_dict_type = {
 void init_redis_server(struct redis_server_t* rs) {
     rs->proto_max_bulk_len = 1024 * 1024;
     rs->clients_to_close = list_new();
-    rs->commands = dict_new(&command_table_dict_type);
+    rs->command_manager = command_manager_new();
     rs->modules = dict_new(&modules_dict_type);
     module_register_core_api(rs);
 } 
-struct shared_objects_t shared;
-void init_shared_objects() {
-    int j;
-    shared.crlf = latte_object_new(OBJ_STRING,sds_new("\r\n"));
-    shared.ok = latte_object_new(OBJ_STRING,sds_new("+OK\r\n"));
-    shared.pong = latte_object_new(OBJ_STRING,sds_new("+PONG\r\n"));
-    shared.wrongtypeerr = latte_object_new(OBJ_STRING, sds_new("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"));
-    for (j = 0; j < OBJ_SHARED_BULKHDR_LEN; j++) {
-        shared.mbulkhdr[j] = latte_object_new(OBJ_STRING,
-            sds_cat_printf(sds_empty(),"*%d\r\n",j));
-        shared.bulkhdr[j] = latte_object_new(OBJ_STRING,
-            sds_cat_printf(sds_empty(),"$%d\r\n",j));
-    }
-}
+
 
 
 
@@ -126,7 +104,6 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     log_add_stdout(LATTE_LIB, LOG_INFO);
     init_redis_server(redis_server);
     init_shared_objects();
-    register_commands(redis_server);
     redis_server->exec_argc = argc;
     redis_server->exec_argv = argv;
     //argv[0] is exec file
@@ -166,7 +143,10 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     redis_server->server.bind = config_get_array(redis_server->config, "bind");
     redis_server->hz = config_get_int64(redis_server->config, "hz");
     redis_server->db_num = config_get_int64(redis_server->config, "db-num");
-    
+    if (config_get_int64(redis_server->config, "use-async-io")) {
+        async_io_module_init();
+        redis_server->server.use_async_io = 1;
+    }
     LATTE_LIB_LOG(LOG_INFO, "init redis server config");
     init_redis_server_dbs(redis_server);
     update_cache_time(redis_server);

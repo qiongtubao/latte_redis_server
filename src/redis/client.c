@@ -43,7 +43,7 @@ int process_command(redis_client_t* rc) {
     // moduleCallCommandFilters(c);
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
-    rc->cmd = rc->lastcmd = lookup_command(server, rc->argv[0]->ptr);
+    rc->cmd = rc->lastcmd = command_manager_lookup(server->command_manager, rc->argv[0]->ptr);
     if (rc->cmd == NULL) {
         return -1;
     } 
