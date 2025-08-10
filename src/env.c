@@ -4,6 +4,6 @@
 
 int env() {
     fprintf(stderr,"latte_env: \n");
-    fprintf(stderr,"       %s\n", aeGetApiName());
+    fprintf(stderr,"       %s\n", ae_get_api_name());
     return 1;
 }

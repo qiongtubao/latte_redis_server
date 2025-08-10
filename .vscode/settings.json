@@ -34,7 +34,9 @@
         "__locale": "c",
         "server.h": "c",
         "ios": "c",
-        "monotonic.h": "c"
+        "monotonic.h": "c",
+        "random": "c",
+        "ae.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }
