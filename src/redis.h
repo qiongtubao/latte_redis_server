@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include "sds/sds.h"
 
-#include "redis/config.h"
+#include "redis_config/config.h"
 #include "redis/server.h"
 
 #define PRIVATE 

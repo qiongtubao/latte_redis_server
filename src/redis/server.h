@@ -1,7 +1,7 @@
 #ifndef __REDIS_SERVER_H
 #define __REDIS_SERVER_H
 #include "server/server.h"
-#include "config.h"
+#include "../redis_config/config.h"
 #include "sds/sds.h"
 #include "dict/dict.h"
 #include "command.h"

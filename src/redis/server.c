@@ -123,8 +123,7 @@ void init_shared_objects() {
 /** About latte RedisServer **/
 int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv) {
     log_module_init();
-    log_add_stdout(LATTE_LIB, LOG_DEBUG);
-    LATTE_LIB_LOG(LOG_INFO, "start redis server %p", redis_server);
+    log_add_stdout(LATTE_LIB, LOG_INFO);
     init_redis_server(redis_server);
     init_shared_objects();
     register_commands(redis_server);
@@ -149,22 +148,25 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     if (load_config_from_argv(redis_server->config, argv + attribute_index, argc - attribute_index) == 0) {
         goto fail;
     }
+    int log_level = config_get_int64(redis_server->config, "log-level");
+    log_set_level(LATTE_LIB, log_level);
+    sds log_file = config_get_sds(redis_server->config, "log-file");
+    if (sds_cmp(log_file, "") != 0) {
+        log_add_file(LATTE_LIB, log_file, log_level);
+    }
     init_latte_server(&redis_server->server);
     LATTE_LIB_LOG(LOG_INFO, "init redis server ");
     redis_server->server.maxclients = config_get_int64(redis_server->config, "max-clients");
-    redis_server->server.el = ae_event_loop_new(1024);
+    redis_server->server.el = ae_event_loop_new(config_get_int64(redis_server->config, "event-loop-size"));
     redis_server->server.tcp_backlog = config_get_int64(redis_server->config, "tcp-backlog"); 
     redis_server->server.port = config_get_int64(redis_server->config, "port");
     redis_server->server.maxclients = config_get_int64(redis_server->config, "max-clients");
     redis_server->server.createClient = create_redis_client;
     redis_server->server.freeClient = redis_client_delete;
     redis_server->server.bind = config_get_array(redis_server->config, "bind");
-    redis_server->hz = 10;//config_get_int64(redis_server->config, "hz");
-    redis_server->db_num = 16;
-    sds log_file = config_get_sds(redis_server->config, "log-file");
-    if (log_file) {
-        log_add_file(LATTE_LIB, log_file, LOG_INFO);
-    }
+    redis_server->hz = config_get_int64(redis_server->config, "hz");
+    redis_server->db_num = config_get_int64(redis_server->config, "db-num");
+    
     LATTE_LIB_LOG(LOG_INFO, "init redis server config");
     init_redis_server_dbs(redis_server);
     update_cache_time(redis_server);

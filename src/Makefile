@@ -37,7 +37,7 @@ $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a:
 
 MAC_M1_CFLAGS=-fprofile-arcs -ftest-coverage
 
-OBJS=version.o main.o help.o  env.o redis/config.o redis/server.o redis/crons.o redis/client.o redis/commands.o redis/client_reply.o redis/module.o redis/db.o 
+OBJS=version.o main.o help.o  env.o redis_config/config.o redis/server.o redis/crons.o redis/client.o redis/commands.o redis/client_reply.o redis/module.o redis/db.o 
 
 #OBJS=version.o main.o help.o  env.o redis_server/config.o redis.o redis_server/crons.o redis_server/client.o
 
@@ -47,5 +47,5 @@ all: $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a $(OBJS)
 
 clean:
 	cd ../deps/latte_c && make clean_all 
-	rm -rf *.o *.d redis/*.o redis/*.d
+	rm -rf *.o *.d redis/*.o redis/*.d redis_config/*.o redis_config/*.d
 	rm -rf main
