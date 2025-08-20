@@ -165,7 +165,7 @@ int process_inline_buffer(redis_client_t* rc){
      * to keep the connection active. */
     if (query_len != 0 && rc->flag & CLIENT_MASTER) {
         sds_free_splitres(argv,argc);
-        LATTE_LIB_LOG(LL_WARN,"WARNING: Receiving inline protocol from master, master stream corruption? Closing the master connection and discarding the cached master.");
+        LATTE_LIB_LOG(LOG_WARN,"WARNING: Receiving inline protocol from master, master stream corruption? Closing the master connection and discarding the cached master.");
         set_protocol_error("Master using the inline protocol. Desync?",rc);
         return -1;
     }
@@ -441,7 +441,7 @@ int redis_client_handle(struct latte_client_t* lc, int nread) {
     //     sds ci = catClientInfoString(sdsempty(),c), bytes = sdsempty();
 
     //     bytes = sdscatrepr(bytes,c->querybuf,64);
-    //     serverLog(LL_WARNING,"Closing client that reached max query buffer length: %s (qbuf initial bytes: %s)", ci, bytes);
+    //     serverLog(LOG_WARNING,"Closing client that reached max query buffer length: %s (qbuf initial bytes: %s)", ci, bytes);
     //     sdsfree(ci);
     //     sdsfree(bytes);
     //     freeClientAsync(c);

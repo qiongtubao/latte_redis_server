@@ -108,42 +108,44 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     redis_server->exec_argv = argv;
     //argv[0] is exec file
     redis_server->executable = get_absolute_path(argv[0]);
-
-    redis_server->config = create_server_config();
+    redis_server->config_manager = config_manager_new();
+    redis_server->config = server_config_new(redis_server->config_manager);
     
     //argv[1] maybe is config file
     int attribute_index = 1;
-    if (argv[1][0] != '-') {
-        redis_server->configfile = get_absolute_path(argv[1]);
-        if (load_config_from_file(redis_server->config, redis_server->configfile) == 0) {
+    if (argc > 1) {
+        if (argv[1][0] != '-') {
+            redis_server->configfile = get_absolute_path(argv[1]);
+            if (config_load_file(redis_server->config_manager, redis_server->configfile) == 0) {
+                goto fail;
+            }
+            attribute_index++;
+        }
+
+        //add config attribute property
+        if (config_load_argv(redis_server->config_manager, argv + attribute_index, argc - attribute_index) == 0) {
             goto fail;
         }
-        attribute_index++;
     }
-
-    //add config attribute property
-    if (load_config_from_argv(redis_server->config, argv + attribute_index, argc - attribute_index) == 0) {
-        goto fail;
-    }
-    int log_level = config_get_int64(redis_server->config, "log-level");
-    log_set_level(LATTE_LIB, log_level);
-    sds log_file = config_get_sds(redis_server->config, "log-file");
-    if (sds_cmp(log_file, "") != 0) {
-        log_add_file(LATTE_LIB, log_file, log_level);
+    
+    log_set_level(LATTE_LIB, redis_server->config->log_level);
+    sds log_file = redis_server->config->logfile;
+    if (log_file != NULL) {
+        log_add_file(LATTE_LIB, log_file, redis_server->config->log_level);
     }
     init_latte_server(&redis_server->server);
     LATTE_LIB_LOG(LOG_INFO, "init redis server ");
-    redis_server->server.maxclients = config_get_int64(redis_server->config, "max-clients");
-    redis_server->server.el = ae_event_loop_new(config_get_int64(redis_server->config, "event-loop-size"));
-    redis_server->server.tcp_backlog = config_get_int64(redis_server->config, "tcp-backlog"); 
-    redis_server->server.port = config_get_int64(redis_server->config, "port");
-    redis_server->server.maxclients = config_get_int64(redis_server->config, "max-clients");
+    redis_server->server.maxclients = redis_server->config->max_clients;
+    redis_server->server.el = ae_event_loop_new(redis_server->config->event_loop_size);
+    redis_server->server.tcp_backlog = redis_server->config->tcp_backlog; 
+    redis_server->server.port = redis_server->config->port;
+    redis_server->server.maxclients = redis_server->config->max_clients;
     redis_server->server.createClient = create_redis_client;
     redis_server->server.freeClient = redis_client_delete;
-    redis_server->server.bind = config_get_array(redis_server->config, "bind");
-    redis_server->hz = config_get_int64(redis_server->config, "hz");
-    redis_server->db_num = config_get_int64(redis_server->config, "db-num");
-    if (config_get_int64(redis_server->config, "use-async-io")) {
+    redis_server->server.bind = redis_server->config->bind;
+    redis_server->hz = redis_server->config->hz;
+    redis_server->db_num = redis_server->config->db_num;
+    if (redis_server->config->use_async_io) {
         async_io_module_init();
         redis_server->server.use_async_io = 1;
     }

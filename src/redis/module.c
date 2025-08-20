@@ -47,7 +47,7 @@ int module_load(redis_server_t* server,const char *path, void **module_argv, int
     void* handle;
     redis_module_ctx_t ctx = REDIS_MODULE_CTX_INIT;
     ctx.server = server;
-    LATTE_LIB_LOG(LL_WARN, "module load set server module_api %p", server->module_api);
+    LATTE_LIB_LOG(LOG_WARN, "module load set server module_api %p", server->module_api);
     // ctx.client = module_free_context_reused_client;
     // selectDb(ctx.client, 0);
 
@@ -55,21 +55,21 @@ int module_load(redis_server_t* server,const char *path, void **module_argv, int
     // 检查文件是否存在
     if (stat(path, &st) == 0) {
         if (!(st.st_mode & (S_IXUSR  | S_IXGRP | S_IXOTH))) {
-            LATTE_LIB_LOG(LL_WARN, "Module %s failed to load: It does not have execute permissions.", path);
+            LATTE_LIB_LOG(LOG_WARN, "Module %s failed to load: It does not have execute permissions.", path);
             return -1;
         }
     }
     //动态打开so
     handle = dlopen(path,RTLD_NOW|RTLD_LOCAL);
     if (handle == NULL) {
-        LATTE_LIB_LOG(LL_WARN, "Module %s failed to load: %s", path, dlerror());
+        LATTE_LIB_LOG(LOG_WARN, "Module %s failed to load: %s", path, dlerror());
         return -1;
     }
     //获得执行函数 redis_module_onload
     onload = (int (*)(void *, void **, int))(unsigned long) dlsym(handle,"redis_module_onload");
     if (onload == NULL) {
         dlclose(handle);
-        LATTE_LIB_LOG(LL_WARN, 
+        LATTE_LIB_LOG(LOG_WARN, 
             "Module %s does not export RedisModule_OnLoad() "
             "symbol. Module not loaded.",path);
         return -1;
@@ -83,7 +83,7 @@ int module_load(redis_server_t* server,const char *path, void **module_argv, int
             // module_free_module_structure(ctx.module);
         }
         dlclose(handle);
-        LATTE_LIB_LOG(LL_WARN, "Module %s initialization failed. Module not loaded",path);
+        LATTE_LIB_LOG(LOG_WARN, "Module %s initialization failed. Module not loaded",path);
         return -1;
     }
     dict_add(server->modules, ctx.module->name, ctx.module);

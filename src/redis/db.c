@@ -265,7 +265,7 @@ kv_store_t *kv_store_create(dict_func_t *type, int num_dicts_bits, int flags) {
 
     if (!(kvs->flags & KVSTORE_ALLOCATE_DICTS_ON_DEMAND)) {
         for (int i = 0; i < kvs->num_dicts; i++) {
-            LATTE_LIB_LOG(LL_INFO, "DB CREATE");
+            LATTE_LIB_LOG(LOG_INFO, "DB CREATE");
             kv_store_create_dict_if_needed(kvs, i);
         }
     } else {

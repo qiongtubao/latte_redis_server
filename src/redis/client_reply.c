@@ -98,12 +98,12 @@ int close_client_on_output_buffer_limit_reached(redis_client_t *c, int async) {
 
         if (async) {
             free_redis_client_async(c);
-            LATTE_LIB_LOG(LL_WARN,
+            LATTE_LIB_LOG(LOG_WARN,
                       "Client %s scheduled to be closed ASAP for overcoming of output buffer limits.",
                       client);
         } else {
             free_redis_client(c);
-            LATTE_LIB_LOG(LL_WARN,
+            LATTE_LIB_LOG(LOG_WARN,
                       "Client %s closed for overcoming of output buffer limits.",
                       client);
         }

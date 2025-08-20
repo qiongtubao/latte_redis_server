@@ -22,7 +22,8 @@ typedef struct redis_server_t {
     sds* exec_argv;
     sds executable; /** execut file path **/
     sds configfile;
-    config_manager_t* config;
+    config_manager_t* config_manager;
+    server_config_t* config;
     command_manager_t* command_manager;
     dict_t* robj_register;
     list_t* clients_to_close;
