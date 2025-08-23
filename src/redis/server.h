@@ -51,7 +51,7 @@ void update_cache_time(struct redis_server_t* server);
 int start_redis_server(redis_server_t* redis_server, int argc, sds* argv);
 int init_redis_server_crons(redis_server_t* redis_server);
 int init_redis_server_dbs(redis_server_t* redis_server);
-
+int init_redis_modules(redis_server_t* server);
 
 
 

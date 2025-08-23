@@ -20,7 +20,7 @@ all: latte.so
 # 	$(CC) -I. $(CFLAGS) $(SHOBJ_CFLAGS) -fPIC -c $< -o $@
 
 .c.xo:
-	$(CC) $(CFLAGS)  -c $< -o $@
+	$(CC) $(CFLAGS) $(SHOBJ_CFLAGS) -fPIC -c $< -o $@
 
 latte.xo: ../redis/redis_module.h 
 

@@ -10,6 +10,7 @@
 #include "object/string.h"
 #include "debug/latte_debug.h"
 #include "../shared/shared.h"
+#include "utils/utils.h"
 
 #define REDIS_MODULE_CTX_AUTO_MEMORY (1<<0)
 #define REDIS_MODULE_CTX_KEYS_POS_REQUEST (1<<1)
@@ -406,4 +407,40 @@ void module_register_core_api(redis_server_t* server) {
     REGISTER_API(server, reply_with_wrong_type_error);
     REGISTER_API(server, reply_with_null);
     REGISTER_API(server, reply_with_object);
+}
+
+
+/* module entry */
+
+module_entry_t* module_entry_new(sds path, int argc, char** args) {
+    module_entry_t* entry = zmalloc(sizeof(module_entry_t));
+    entry->path = path;
+    entry->args = vector_new();
+    for (int i = 0; i < argc; i++) {
+        vector_push(entry->args, sds_new(args[i]));
+    }
+    return entry;
+}
+
+void module_entry_delete(void* data) {
+    module_entry_t* entry = (module_entry_t*)data;
+    sds_delete(entry->path);
+    while (vector_size(entry->args) > 0) {
+        sds_delete(vector_pop(entry->args));
+    }
+    vector_delete(entry->args);
+    zfree(entry);
+}
+
+int init_redis_modules(redis_server_t* server) {
+    if (server->config->load_modules == NULL) {
+        LATTE_LIB_LOG(LOG_WARN, "no modules to load");
+        return 1;
+    }
+    vector_t* entrys = server->config->load_modules;
+    for (int i = 0; i < vector_size(entrys); i++) {
+        module_entry_t* entry = vector_get(entrys, i);
+        latte_assert_with_info(module_load(server, entry->path, (void**)entry->args, vector_size(entry->args)) == 0, "module load %s failed", entry->path);
+    }
+    return 1;
 }

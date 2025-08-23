@@ -7,6 +7,15 @@
 typedef void (*redis_module_info_func)(struct redis_module_info_ctx *ctx, int for_crash_report);
 typedef void (*redis_module_defrag_func)(struct RedisModuleDefragCtx *ctx);
 
+
+typedef struct module_entry_t {
+    sds path;
+    vector_t* args;
+} module_entry_t;
+
+module_entry_t* module_entry_new(sds path, int argc, char** args);
+void module_entry_delete(void* data);
+
 typedef struct redis_module_t {
     void* handle;
     char* name;

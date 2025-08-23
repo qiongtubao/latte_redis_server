@@ -133,6 +133,7 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     if (log_file != NULL) {
         log_add_file(LATTE_LIB, log_file, redis_server->config->log_level);
     }
+    init_redis_modules(redis_server);
     init_latte_server(&redis_server->server);
     LATTE_LIB_LOG(LOG_INFO, "init redis server ");
     redis_server->server.maxclients = redis_server->config->max_clients;

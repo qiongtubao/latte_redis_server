@@ -60,7 +60,7 @@ REDISMODULE_API int (*redis_module_reply_with_simple_string)(redis_module_ctx_t 
 REDISMODULE_API redis_module_db_entry_t* (*redis_module_lookup_key)(redis_module_ctx_t* ctx, redis_module_string_t* key) REDISMODULE_ATTR;
 REDISMODULE_API void (*redis_module_object_incr_count)(redis_module_object_t* o)  REDISMODULE_ATTR;
 REDISMODULE_API void (*redis_module_object_decr_count)(redis_module_object_t* o)  REDISMODULE_ATTR;
-REDISMODULE_API int (*redis_module_db_add)(redis_module_ctx_t *ctx, redis_module_string_t* key, redis_module_string_t* val)  REDISMODULE_ATTR;
+REDISMODULE_API int (*redis_module_db_add)(redis_module_ctx_t *ctx, redis_module_string_t* key, redis_module_object_t* val)  REDISMODULE_ATTR;
 REDISMODULE_API redis_module_object_t* (*redis_module_db_entry_get_value)(redis_module_db_entry_t* val)  REDISMODULE_ATTR;
 REDISMODULE_API int (*redis_module_db_entry_set_value)(redis_module_db_entry_t* entry, redis_module_object_t* o) REDISMODULE_ATTR;
 REDISMODULE_API int (*redis_module_object_is_string)(redis_module_object_t* val)  REDISMODULE_ATTR;

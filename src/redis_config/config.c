@@ -2,6 +2,7 @@
 #include "log/log.h"
 #include "zmalloc/zmalloc.h"
 #include "utils/utils.h"
+#include "../redis/module.h"
 
 #define DEFAULT_PORT 6379
 #define DEFAULT_TCP_BACKLOG 512
@@ -28,8 +29,71 @@ config_enum_t log_level_enum_list[] = {
     { NULL,  0},
 };
 
-server_config_t* server_config_new(config_manager_t* manager) { 
-    config_manager_t* config_manager = config_manager_new();
+
+
+
+
+void config_load_modules_add(void* data_ctx, void* new_value) {
+    vector_t* new_modules = (vector_t*)new_value;
+    vector_t* old_modules = *(vector_t**)data_ctx;
+    if (old_modules == NULL) {
+        *(vector_t**)data_ctx = new_modules;
+        return;
+    }
+    
+    for (int i = 0; i < vector_size(new_modules); i++) {
+        vector_push(old_modules, vector_pop(new_modules));
+    }
+    vector_delete(new_modules);
+
+}
+
+void* config_load_modules_get(void* data_ctx) {
+    return (void*)*(vector_t**)data_ctx;
+}
+
+void* config_load_modules_load(config_rule_t* rule, char** argv, int argc, char** error) {
+   vector_t* modules = vector_new();
+   LATTE_LIB_LOG(LOG_INFO, "load module %s", argv[0]);
+   module_entry_t* entry = module_entry_new(sds_new(argv[0]), argc -1, argv + 1);
+   vector_push(modules, entry);
+   return (void*)modules;
+}
+
+int config_load_modules_cmp(void* data_ctx, void* new_value) {
+    latte_assert_with_info(0, "config_load_modules_cmp not implemented");
+    return 1;
+}
+
+int config_load_modules_is_valid(void* data_ctx, void* new_value) {
+    latte_assert_with_info(0, "config_load_modules_is_valid not implemented");
+    // vector_t* modules = *(vector_t**)data_ctx;
+    // vector_t* new_modules = (vector_t*)new_value;
+    // for (int i = 0; i < vector_size(new_modules); i++) {
+    //     module_entry_t* entry = vector_get(new_modules, i);
+    //     if (sds_len(entry->path) == 0) {
+    //         return 0;
+    //     }
+    //     //file exists
+    //     if (!file_exists(entry->path)) {
+    //         return 0;
+    //     }
+    // }
+    return 1;
+}
+
+sds config_load_modules_to_sds(void* data_ctx, char* key, void* value) {
+    latte_assert_with_info(0, "config_load_modules_to_sds not implemented");
+    return NULL;
+}
+
+void config_module_entry_delete(void* data) {
+    module_entry_t* entry = (module_entry_t*)data;
+    module_entry_delete(entry);
+}   
+
+
+server_config_t* server_config_new(config_manager_t* config_manager) { 
     server_config_t* config = zmalloc(sizeof(server_config_t));
     config_add_rule(config_manager, "bind", config_rule_new_sds_array_rule(0, &config->bind, NULL, -1, sds_new("* -::*")));
     config_add_rule(config_manager, "port", config_rule_new_numeric_rule(0, &config->port, 0, 65535, NULL, DEFAULT_PORT));
@@ -41,9 +105,22 @@ server_config_t* server_config_new(config_manager_t* manager) {
     config_add_rule(config_manager, "event-loop-size", config_rule_new_numeric_rule(0, &config->event_loop_size, 0, 65535, NULL, 1024));
     config_add_rule(config_manager, "hz", config_rule_new_numeric_rule(0, &config->hz, 0, 65535, NULL, 10));
     config_add_rule(config_manager, "db-num", config_rule_new_numeric_rule(0, &config->db_num, 0, 65535, NULL, 16));
-    // config_add_rule(config_manager, "load-module", config_rule_new_sds_rule(0, &config->load_modules, NULL, sds_new("")));
-    
-    latte_assert_with_info(config_init_all_data(config_manager) > 0, "config_init_all_data failed");
+    config_add_rule(config_manager, "load-module", config_rule_new(
+        CONFIG_FLAG_DISABLE_SAVE,
+        &config->load_modules,
+        config_load_modules_add,
+        config_load_modules_get,
+        NULL,
+        config_load_modules_load,
+        config_load_modules_cmp,
+        config_load_modules_is_valid,
+        config_load_modules_to_sds,
+        NULL,
+        NULL,
+        config_module_entry_delete,
+        NULL
+    ));
+    latte_assert_with_info(config_init_all_data(config_manager) == 11, "config_init_all_data failed");
     return config;
 }
 

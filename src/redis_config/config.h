@@ -18,16 +18,16 @@
 
 
 typedef struct server_config_t {
-    int64_t port;
+    long long port;
     vector_t* bind;
-    int64_t tcp_backlog;
+    long long tcp_backlog;
     sds logfile;
     log_level_enum log_level;
-    int64_t max_clients;
+    long long max_clients;
     bool use_async_io;
-    int64_t event_loop_size;
-    int64_t hz;
-    int64_t db_num;
+    long long event_loop_size;
+    long long hz;
+    long long db_num;
     vector_t* load_modules;
 } server_config_t;
 
