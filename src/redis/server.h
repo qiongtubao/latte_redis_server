@@ -7,6 +7,8 @@
 #include "dict/dict.h"
 #include "command.h"
 #include "db.h"
+#include "slowlog.h"
+#include "../experiment/metric.h"
 
 /* Server maxmemory strategies. Instead of using just incremental number
  * for this defines, we use a set of flags so that testing for certain
@@ -45,6 +47,13 @@ typedef struct redis_server_t {
     /** db */
     struct redis_db_t* dbs;
     int db_num;
+
+    /** slowlog */
+    slowlog_manager_t* slowlog_manager;
+
+    /** metric */
+    metric_t* metric;
+    long long metric_stat_numcommands;
 } redis_server_t;
 
 void update_cache_time(struct redis_server_t* server);

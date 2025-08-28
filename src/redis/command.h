@@ -70,19 +70,5 @@ typedef struct redis_command_t {
 
 
 
-typedef long long time_point_t;
-typedef long long time_duration_us_t;
 
-typedef struct redis_command_trace_t {
-    time_point_t ae_trigger_read_time;        //epoll 触发读取事件时间
-    time_point_t ae_get_event_time;           //epoll 获得事件事件
-    time_point_t read_time;                   //读取命令时间
-    time_duration_us_t decode_command_time;   //解密耗时
-    time_point_t before_call_time;            //执行命令前
-    long long after_call_time;                //执行命令后
-    time_duration_us_t encode_command_time;   //加密耗时
-    long long write_time;                     //发送命令时间
-} redis_command_trace_t;
-
-void reset_redis_command_trace_t(redis_command_trace_t* trace);
 #endif

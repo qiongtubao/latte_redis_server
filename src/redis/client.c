@@ -45,6 +45,7 @@ int process_command(redis_client_t* rc) {
      * such as wrong arity, bad command name and so forth. */
     rc->cmd = rc->lastcmd = command_manager_lookup(server->command_manager, rc->argv[0]->ptr);
     if (rc->cmd == NULL) {
+        LATTE_LIB_LOG(LOG_ERROR, "command not found: %s", rc->argv[0]->ptr);
         return -1;
     } 
     call(rc, CMD_CALL_FULL);
@@ -94,6 +95,7 @@ void command_processed(redis_client_t* rc) {
 }
 
 int process_command_and_reset_client(redis_client_t* rc) {
+    LATTE_LIB_LOG(LOG_INFO, "process_command_and_reset_client");
     int deadclient = 0;
     redis_server_t* server = (redis_server_t*)rc->client.server;
     redis_client_t *old_client = server->current_client;
@@ -117,10 +119,11 @@ int process_command_and_reset_client(redis_client_t* rc) {
 }
 
 void set_protocol_error(const char* errstr, redis_client_t* rc) {
-
+    LATTE_LIB_LOG(LOG_ERROR, "set_protocol_error: %s", errstr);
 }
 
 int process_inline_buffer(redis_client_t* rc){
+    LATTE_LIB_LOG(LOG_INFO, "process_inline_buffer");
     char *newline;
     int argc, j, linefeed_chars;
     sds *argv, aux;
@@ -350,6 +353,7 @@ int process_multibulk_buffer(redis_client_t* rc) {
 
 
 int redis_process_input_buffer(redis_client_t* rc) {
+    LATTE_LIB_LOG(LOG_INFO, "redis_process_input_buffer");
     //解析读取的数据 转换成object 对象
     /* Keep processing while there is something in the input buffer */
     while (rc->client.qb_pos < sds_len(rc->client.querybuf)) {
@@ -374,7 +378,10 @@ int redis_process_input_buffer(redis_client_t* rc) {
          * this flag has been set (i.e. don't process more commands).
          *
          * The same applies for clients we want to terminate ASAP. */
-        if (rc->client.flags & (CLIENT_CLOSE_AFTER_REPLY|CLIENT_CLOSE_ASAP)) break;
+        if (rc->client.flags & (CLIENT_CLOSE_AFTER_REPLY|CLIENT_CLOSE_ASAP)) {
+            LATTE_LIB_LOG(LOG_INFO, "redis_process_input_buffer CLIENT_CLOSE_AFTER_REPLY|CLIENT_CLOSE_ASAP break");
+            break;
+        }
         
         if (!rc->req_type) {
             if (rc->client.querybuf[rc->client.qb_pos] == '*') { //判定协议如果开头是* 就是redis协议
@@ -425,8 +432,9 @@ int redis_process_input_buffer(redis_client_t* rc) {
             }
         }
     }
-
+    
     if (rc->client.qb_pos) return 1;
+    LATTE_LIB_LOG(LOG_INFO, "redis_process_input_buffer end");
     return 0;
 }
 int redis_client_handle(struct latte_client_t* lc, int nread) {
@@ -452,12 +460,34 @@ int redis_client_handle(struct latte_client_t* lc, int nread) {
     return redis_process_input_buffer(rc);
 }
 
+void redis_client_command_end(latte_client_t* cli) {
+    redis_client_t* rc = (redis_client_t*)cli;
+    redis_server_t* server = (redis_server_t*)cli->server;
+
+    /* slowlog */
+    slowlog_manager_push_if_needed(server->slowlog_manager,rc);
+    /* 监控 qps*/
+    server->metric_stat_numcommands++;
+}
+
 latte_client_t* create_redis_client() {
     redis_client_t* redis_client = zmalloc(sizeof(redis_client_t));
     redis_client->client.exec = redis_client_handle;
     redis_client->dbid = 0;
     redis_client->multi_bulk_len = 0;
     redis_client->bulk_len = -1; //非常重要 ！ ！ ！ redis协议命令解析用
+    redis_client->current_decode_time = 0;
+    redis_client->current_encode_time = 0;
+    redis_client->current_call_time = 0;
+    redis_client->client.start = NULL;
+    redis_client->client.end = redis_client_command_end;
+    redis_client->client.start_time = 0;
+    redis_client->client.read_time = 0;
+    redis_client->client.exec_time = 0;
+    redis_client->client.exec_end_time = 0;
+    redis_client->client.write_time = 0;
+    redis_client->client.end_time = 0;
+    redis_client->client.flags = 0;
     return (latte_client_t*)redis_client;
 }
 void redis_client_delete(latte_client_t* client) {

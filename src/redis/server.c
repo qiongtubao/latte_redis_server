@@ -92,6 +92,8 @@ void init_redis_server(struct redis_server_t* rs) {
     rs->clients_to_close = list_new();
     rs->command_manager = command_manager_new();
     rs->modules = dict_new(&modules_dict_type);
+    rs->metric = metric_new(16);
+    rs->metric_stat_numcommands = 0;
     module_register_core_api(rs);
 } 
 
@@ -148,12 +150,15 @@ int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv)
     redis_server->db_num = redis_server->config->db_num;
     if (redis_server->config->use_async_io) {
         async_io_module_init();
-        redis_server->server.use_async_io = 1;
+        redis_server->server.use_async_io = true;
     }
     LATTE_LIB_LOG(LOG_INFO, "init redis server config");
     init_redis_server_dbs(redis_server);
     update_cache_time(redis_server);
     init_redis_server_crons(redis_server);
+    redis_server->slowlog_manager = slowlog_manager_new(
+        redis_server->config->slowlog_log_slower_than, 
+        redis_server->config->slowlog_max_len);
     start_latte_server(&redis_server->server);
     return 1;
 fail:

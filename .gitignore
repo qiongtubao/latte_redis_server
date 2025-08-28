@@ -5,3 +5,5 @@ src/main
 
 Makefile.dep
 bench/bench
+*.so
+*.xo

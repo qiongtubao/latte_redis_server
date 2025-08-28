@@ -29,6 +29,8 @@ typedef struct server_config_t {
     long long hz;
     long long db_num;
     vector_t* load_modules;
+    long long slowlog_log_slower_than;
+    long long slowlog_max_len;
 } server_config_t;
 
 /* Global vars */

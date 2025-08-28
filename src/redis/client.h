@@ -56,7 +56,6 @@ typedef struct redis_client_t {
     latte_object_t** argv;
     redis_command_t* cmd;
     redis_command_t* lastcmd;
-    redis_command_trace_t cmd_trace;
     size_t argv_len_sum;
     long bulk_len;
     int multi_bulk_len;
@@ -65,6 +64,10 @@ typedef struct redis_client_t {
     long long repl_ack_time;
     int dbid;
 
+    /* 监控 */
+    ustime_duration_t current_decode_time;
+    ustime_duration_t current_encode_time;
+    ustime_duration_t current_call_time;
 } redis_client_t;
 
 latte_client_t* create_redis_client();

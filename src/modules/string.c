@@ -7,14 +7,11 @@
 int set_command(redis_module_ctx_t* ctx, redis_module_string_t **argv, int argc) {
     UNUSED(argc);
     redis_module_string_t* key = argv[1];
-    printf("\nset\n");
     redis_module_db_entry_t* o = redis_module_lookup_key(ctx, key);
     redis_module_object_t* value;
     if (o == NULL) {
         value = (redis_module_object_t*)argv[2];
-        printf("\nset2 %p %p\n", value, redis_module_object_incr_count);
         redis_module_object_incr_count(value);
-        printf("\nset3\n");
         redis_module_db_add(ctx, key, value);
     } else {
         value = redis_module_db_entry_get_value(o);

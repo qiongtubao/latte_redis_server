@@ -86,7 +86,7 @@ int db_add_key_value_internal(redis_server_t* server,redis_db_t* db, latte_objec
     sds key_ptr;
     latte_assert_with_info(get_sds_from_object(key, &key_ptr) == 0, "key is not a string");// "key is not a string"
     int dict_index = get_kv_store_index_for_key(key_ptr);
-    dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, key->ptr, &existing);
+    dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, sds_new(key->ptr), &existing);
     if (update_if_existing && existing) {
         db_set_value(server, db, key, val, 1, existing);
         return 1;
@@ -112,7 +112,7 @@ static dict_t* kv_store_create_dict_if_needed(kv_store_t* kvs, int didx) {
     if (d) return d;
     kvs->dicts[didx] = dict_new(kvs->dtype); //延迟创建
     kv_store_dict_meta_data_t* meta_data = (kv_store_dict_meta_data_t*)dict_meta_data(kvs->dicts[didx]);
-    meta_data->kvs = kvs;
+    // meta_data->kvs = kvs;
     kvs->allocated_dicts++;  //可用字典个数   无法用vector原因时vector是顺序的
     return kvs->dicts[didx];
 }
