@@ -9,7 +9,7 @@ ifeq ($(uname_S),Linux)
 	SHOBJ_LDFLAGS ?= -shared
 else
 	SHOBJ_CFLAGS ?= -W -Wall -dynamic -fno-common -g -ggdb -std=c99 -O2
-	SHOBJ_LDFLAGS ?= -bundle -undefined dynamic_lookup
+	SHOBJ_LDFLAGS ?= -bundle -undefined dynamic_lookup -fPIC
 endif
 
 .SUFFIXES: .c .so .xo .o
@@ -20,7 +20,7 @@ all: latte.so
 # 	$(CC) -I. $(CFLAGS) $(SHOBJ_CFLAGS) -fPIC -c $< -o $@
 
 .c.xo:
-	$(CC) $(CFLAGS) $(SHOBJ_CFLAGS) -fPIC -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 latte.xo: ../redis/redis_module.h 
 

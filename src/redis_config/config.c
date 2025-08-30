@@ -33,19 +33,19 @@ config_enum_t log_level_enum_list[] = {
 
 
 
-void config_load_modules_add(void* data_ctx, void* new_value) {
+int config_load_modules_add(void* data_ctx, void* new_value) {
     vector_t* new_modules = (vector_t*)new_value;
     vector_t* old_modules = *(vector_t**)data_ctx;
     if (old_modules == NULL) {
         *(vector_t**)data_ctx = new_modules;
-        return;
+        return 1;
     }
     
     for (int i = 0; i < vector_size(new_modules); i++) {
         vector_push(old_modules, vector_pop(new_modules));
     }
     vector_delete(new_modules);
-
+    return 1;
 }
 
 void* config_load_modules_get(void* data_ctx) {
@@ -60,7 +60,7 @@ void* config_load_modules_load(config_rule_t* rule, char** argv, int argc, char*
    return (void*)modules;
 }
 
-int config_load_modules_cmp(void* data_ctx, void* new_value) {
+int config_load_modules_cmp(config_rule_t* rule, void* data_ctx, void* new_value) {
     latte_assert_with_info(0, "config_load_modules_cmp not implemented");
     return 1;
 }
@@ -82,7 +82,7 @@ int config_load_modules_is_valid(void* data_ctx, void* new_value) {
     return 1;
 }
 
-sds config_load_modules_to_sds(void* data_ctx, char* key, void* value) {
+sds config_load_modules_to_sds(config_rule_t* data_ctx, char* key, void* value) {
     latte_assert_with_info(0, "config_load_modules_to_sds not implemented");
     return NULL;
 }

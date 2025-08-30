@@ -3,7 +3,6 @@
 
 #include "latte.h"
 
-
 int set_command(redis_module_ctx_t* ctx, redis_module_string_t **argv, int argc) {
     UNUSED(argc);
     redis_module_string_t* key = argv[1];
