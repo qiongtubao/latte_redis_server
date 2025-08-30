@@ -1,3 +1,9 @@
 *.o
-src/latte-redis-server
-src/latte-redis-server
+
+src/main
+*.d
+
+Makefile.dep
+bench/bench
+*.so
+*.xo
