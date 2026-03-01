@@ -72,9 +72,13 @@ OBJS=version.o main.o help.o  env.o redis_config/config.o $(REDIS_OBJS) $(COMMAN
 
 #OBJS=version.o main.o help.o  env.o redis_server/config.o redis.o redis_server/crons.o redis_server/client.o
 
-# -lstdc++
-all: $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a $(OBJS)
-	$(REDIS_CC) $(DEBUG) -o main $(OBJS) -I$(LATTE_LIB_WORKSPACE)/out/include -I$(LATTE_LIB_WORKSPACE)/deps/jemalloc/include -L$(LATTE_LIB_WORKSPACE)/out/lib -lm  -ldl -lz -lstdc++ -lpthread -llatte $(FINAL_SHARD_LIB) $(MAC_M1_CFLAGS)
+# -lstdc++ ；Mac 使用 libc 时不需要 jemalloc 头与库
+JEMALLOC_INC=$(if $(filter jemalloc,$(REDIS_MALLOC)),-I$(LATTE_LIB_WORKSPACE)/deps/jemalloc/include,)
+
+latte_lib: $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a
+
+all: latte_lib $(OBJS)
+	$(REDIS_CC) $(DEBUG) -o main $(OBJS) -I$(LATTE_LIB_WORKSPACE)/out/include $(JEMALLOC_INC) -L$(LATTE_LIB_WORKSPACE)/out/lib -lm  -ldl -lz -lstdc++ -lpthread -llatte $(FINAL_SHARD_LIB) $(MAC_M1_CFLAGS)
 
 
 distclean:

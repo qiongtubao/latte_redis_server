@@ -9,9 +9,12 @@ set tcl_precision 17
 source tests/support/util.tcl
 source tests/support/test.tcl
 source tests/support/instances.tcl
+source tests/support/server.tcl
+source tests/support/client.tcl
 
 set ::all_tests {
     unit/version
+    commands/ping
 }
 
 
@@ -23,8 +26,8 @@ set ::baseport 21111; # initial port for spawned redis servers
 set ::portcount 8000; # we don't wanna use more than 10000 to avoid collision with cluster bus ports
 # 是否是client
 set ::client 0
-# 并发次数
-set ::numclients 16
+# 并发次数（改为 1 避免多客户端协调卡住，测试少时串行即可）
+set ::numclients 1
 # 执行前是否清理
 set ::dont_pre_clean 0
 # 是否要清理
@@ -360,10 +363,25 @@ proc test_server_main {} {
     set tclsh [info nameofexecutable]
 
     set clientport [find_available_port [expr {$::baseport - 32}] 32]
+    set bound 0
+    for {set retry 0} {!$bound && $retry < 30} {incr retry} {
+        if {[catch {
+            socket -server accept_test_clients -myaddr 127.0.0.1 $clientport
+            set bound 1
+        } err]} {
+            if {[string match "*already in use*" $err] || [string match "*already in use*" $::errorInfo]} {
+                incr clientport
+            } else {
+                error $err
+            }
+        }
+    }
+    if {!$bound} {
+        error "Could not bind test server after 30 retries (address already in use)"
+    }
     if {!$::quiet} {
         puts "Starting test server at port $clientport"
     }
-    socket -server accept_test_clients  -myaddr 127.0.0.1 $clientport
 
     # Start the client instances
     set ::clients_pids {}

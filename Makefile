@@ -6,4 +6,7 @@ default: all
 install:
 	cd src && $(MAKE) $@
 
-.PHONY: install
+test:
+	./runtest
+
+.PHONY: install test
