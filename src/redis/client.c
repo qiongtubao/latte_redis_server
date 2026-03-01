@@ -42,8 +42,12 @@ int process_command(redis_client_t* rc) {
     // }
     // moduleCallCommandFilters(c);
     /* Now lookup the command and check ASAP about trivial error conditions
-     * such as wrong arity, bad command name and so forth. */
-    rc->cmd = rc->lastcmd = command_manager_lookup(server->command_manager, rc->argv[0]->ptr);
+     * such as wrong arity, bad command name and so forth.
+     * argv[0] may be EMBSTR (ptr = inline data, not full sds); build a proper sds for dict lookup. */
+    size_t cmdlen = string_object_len(rc->argv[0]);
+    sds cmd_sds = sds_new_len(rc->argv[0]->ptr, cmdlen);
+    rc->cmd = rc->lastcmd = command_manager_lookup(server->command_manager, cmd_sds);
+    sds_delete(cmd_sds);
     if (rc->cmd == NULL) {
         LATTE_LIB_LOG(LOG_ERROR, "command not found: %s", rc->argv[0]->ptr);
         return -1;

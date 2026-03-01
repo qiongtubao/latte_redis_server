@@ -307,10 +307,14 @@ int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const cha
 dict_entry_t* redis_module_use_lookup_key(redis_module_ctx_t* ctx, latte_object_t* key) {
     redis_client_t* c = module_get_reply_client(ctx);
     redis_server_t* server =  (redis_server_t* )c->client.server;
-    sds key_ptr;
-    latte_assert(get_sds_from_object(key, &key_ptr) == 0);// "key is not a string"
+    if (key->type != OBJ_STRING) return NULL;
+    /* Key may be EMBSTR (ptr = inline data, not full sds); build a proper sds for dict lookup. */
+    size_t len = string_object_len(key);
+    sds key_sds = sds_new_len(key->ptr, len);
     redis_db_t* db = server->dbs + c->dbid;
-    return kv_store_dict_find(db->keys, get_kv_store_index_for_key(key_ptr) , key_ptr);
+    dict_entry_t* ret = kv_store_dict_find(db->keys, get_kv_store_index_for_key(key_sds), key_sds);
+    sds_delete(key_sds);
+    return ret;
 }
 
 void redis_module_use_object_incr_count(latte_object_t* o) {
@@ -349,12 +353,12 @@ void redis_module_use_reply_with_wrong_type_error(redis_module_ctx_t* ctx)  {
 
 void redis_module_use_reply_with_null(redis_module_ctx_t* ctx)  {
     struct redis_client_t* c = module_get_reply_client(ctx);
-    add_reply_proto(c, "*-1\r\n", 5);
+    add_reply_proto(c, "$-1\r\n", 5);
 }
 
 void redis_module_use_reply_with_object(redis_module_ctx_t* ctx, latte_object_t* o)  {
     redis_client_t* c = module_get_reply_client(ctx);
-    add_reply(c, o);
+    add_reply_bulk(c, o);
 }
 
 /* --------------------------------------------------------------------------

@@ -12,9 +12,12 @@ source tests/support/instances.tcl
 source tests/support/server.tcl
 source tests/support/client.tcl
 
+
+
 set ::all_tests {
     unit/version
     commands/ping
+    commands/string
 }
 
 
@@ -34,6 +37,8 @@ set ::dont_pre_clean 0
 set ::dont_clean 0
 # 0表示输出日志
 set ::quiet 0
+# 断言失败时是否暂停（0=不暂停，继续下一个测试）
+set ::pause_on_error 0
 # 外部的
 set ::external 0; # If "1" this means, we are running against external instance
 # Index to the next test to run in the ::all_tests list.
@@ -141,8 +146,10 @@ proc execute_tests name {
     set ::curfile $path
     # 执行tcl文件
     source $path
-    # 给主线程发送 done 命令
-    send_data_packet $::test_server_fd done "$name"
+    # 仅在子进程（测试 client）里向主进程发送 done；主进程直接跑时无 test_server_fd
+    if {[info exists ::test_server_fd]} {
+        send_data_packet $::test_server_fd done "$name"
+    }
 }
 
 proc test_client_main {server_port} {
@@ -218,10 +225,42 @@ proc the_end {} {
 # if there are still test units to run, launch them.
 # 一个新的客户端处于空闲状态。将其从活动客户端列表中删除并
 # 如果还有测试单元要运行，启动它们。
+# 在主进程跑的测试（留空则全部在 client 跑）
+# commands/ping 在主进程跑，避免 test client 的 fd 与 redis fd 在 vwait 时竞争导致收不到 PONG
+# commands/string 在独立子进程中跑，避免 test client 与 redis 连接冲突导致 connection closed
+set ::run_in_main_tests {commands/ping commands/string}
+
 proc signal_idle_client fd {
     # Remove this fd from the list of active clients.
     set ::active_clients \
         [lsearch -all -inline -not -exact $::active_clients $fd]
+
+    # 若下一项是 run_in_main 测试，在主进程执行；先取消当前 client fd 的 fileevent，
+    # 避免 vwait 时主进程去读 test client 导致收不到 redis 回复。
+    while {$::next_test < [llength $::all_tests] && [lsearch -exact $::run_in_main_tests [lindex $::all_tests $::next_test]] >= 0} {
+        set testname [lindex $::all_tests $::next_test]
+        set start [clock seconds]
+        if {!$::quiet} {
+            puts [colorstr bold-white "Testing $testname"]
+        }
+        set saved_handler [fileevent $fd readable]
+        fileevent $fd readable {}
+        if {$testname eq "commands/string"} {
+            set err [catch { exec tclsh tests/run_string_standalone.tcl } out]
+            if {$err} {
+                puts $out
+                lappend ::failed_tests "commands/string: $out"
+            }
+        } else {
+            execute_tests $testname
+        }
+        fileevent $fd readable $saved_handler
+        set elapsed [expr {[clock seconds] - $start}]
+        set n [llength $::all_tests]
+        puts "\[[expr {$::next_test+1}]/$n done\]: $testname ($elapsed seconds)"
+        lappend ::clients_time_history $elapsed $testname
+        incr ::next_test
+    }
 
     # New unit to process?
     if {$::next_test != [llength $::all_tests]} {

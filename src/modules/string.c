@@ -4,7 +4,10 @@
 #include "latte.h"
 
 int set_command(redis_module_ctx_t* ctx, redis_module_string_t **argv, int argc) {
-    UNUSED(argc);
+    if (argc != 3) {
+        redis_module_reply_with_simple_string(ctx, "ERR wrong number of arguments for 'set' command");
+        return -1;
+    }
     redis_module_string_t* key = argv[1];
     redis_module_db_entry_t* o = redis_module_lookup_key(ctx, key);
     redis_module_object_t* value;
@@ -29,7 +32,10 @@ int set_command(redis_module_ctx_t* ctx, redis_module_string_t **argv, int argc)
 
 
 int get_command(redis_module_ctx_t* ctx, redis_module_string_t** argv, int argc) {
-    UNUSED(argc);
+    if (argc != 2) {
+        redis_module_reply_with_simple_string(ctx, "ERR wrong number of arguments for 'get' command");
+        return -1;
+    }
     redis_module_db_entry_t* o = redis_module_lookup_key(ctx, argv[1]);
     if (o == NULL) {
         redis_module_reply_with_null(ctx);

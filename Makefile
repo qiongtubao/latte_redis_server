@@ -6,7 +6,10 @@ default: all
 install:
 	cd src && $(MAKE) $@
 
-test:
+modules:
+	cd src/modules && $(MAKE) all
+
+test: modules
 	./runtest
 
-.PHONY: install test
+.PHONY: install test modules

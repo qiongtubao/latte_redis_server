@@ -86,12 +86,18 @@ int db_add_key_value_internal(redis_server_t* server,redis_db_t* db, latte_objec
     sds key_ptr;
     latte_assert_with_info(get_sds_from_object(key, &key_ptr) == 0, "key is not a string");// "key is not a string"
     int dict_index = get_kv_store_index_for_key(key_ptr);
-    dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, sds_new(key->ptr), &existing);
-    if (update_if_existing && existing) {
+    sds new_key = sds_new(key->ptr);
+    dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, new_key, &existing);
+    if (existing) {
+        sds_delete(new_key);
+        /* Key already exists: update in place (e.g. SET overwrite) to avoid assert crash */
         db_set_value(server, db, key, val, 1, existing);
-        return 1;
+        return 0;
     }
-    latte_assert_with_info(de != NULL, "de is NULL");// 
+    if (de == NULL) {
+        sds_delete(new_key);
+        return -1;
+    }
     init_object_lru_or_lfu(server, val);
     kv_store_dict_set_val(db->keys, dict_index, de, val);
     // signal_key_as_ready(db, key, val->type);
