@@ -245,15 +245,7 @@ proc signal_idle_client fd {
         }
         set saved_handler [fileevent $fd readable]
         fileevent $fd readable {}
-        if {$testname eq "commands/string"} {
-            set err [catch { exec tclsh tests/run_string_standalone.tcl } out]
-            if {$err} {
-                puts $out
-                lappend ::failed_tests "commands/string: $out"
-            }
-        } else {
-            execute_tests $testname
-        }
+        execute_tests $testname
         fileevent $fd readable $saved_handler
         set elapsed [expr {[clock seconds] - $start}]
         set n [llength $::all_tests]
