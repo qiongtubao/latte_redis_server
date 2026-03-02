@@ -228,31 +228,12 @@ proc the_end {} {
 # 在主进程跑的测试（留空则全部在 client 跑）
 # commands/ping 在主进程跑，避免 test client 的 fd 与 redis fd 在 vwait 时竞争导致收不到 PONG
 # commands/string 在独立子进程中跑，避免 test client 与 redis 连接冲突导致 connection closed
-set ::run_in_main_tests {commands/ping commands/string}
 
 proc signal_idle_client fd {
     # Remove this fd from the list of active clients.
     set ::active_clients \
         [lsearch -all -inline -not -exact $::active_clients $fd]
 
-    # 若下一项是 run_in_main 测试，在主进程执行；先取消当前 client fd 的 fileevent，
-    # 避免 vwait 时主进程去读 test client 导致收不到 redis 回复。
-    while {$::next_test < [llength $::all_tests] && [lsearch -exact $::run_in_main_tests [lindex $::all_tests $::next_test]] >= 0} {
-        set testname [lindex $::all_tests $::next_test]
-        set start [clock seconds]
-        if {!$::quiet} {
-            puts [colorstr bold-white "Testing $testname"]
-        }
-        set saved_handler [fileevent $fd readable]
-        fileevent $fd readable {}
-        execute_tests $testname
-        fileevent $fd readable $saved_handler
-        set elapsed [expr {[clock seconds] - $start}]
-        set n [llength $::all_tests]
-        puts "\[[expr {$::next_test+1}]/$n done\]: $testname ($elapsed seconds)"
-        lappend ::clients_time_history $elapsed $testname
-        incr ::next_test
-    }
 
     # New unit to process?
     if {$::next_test != [llength $::all_tests]} {

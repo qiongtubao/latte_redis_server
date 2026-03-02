@@ -353,7 +353,7 @@ void redis_module_use_reply_with_wrong_type_error(redis_module_ctx_t* ctx)  {
 
 void redis_module_use_reply_with_null(redis_module_ctx_t* ctx)  {
     struct redis_client_t* c = module_get_reply_client(ctx);
-    add_reply_proto(c, "$-1\r\n", 5);
+    add_reply_proto(c, "*-1\r\n", 5);
 }
 
 void redis_module_use_reply_with_object(redis_module_ctx_t* ctx, latte_object_t* o)  {
