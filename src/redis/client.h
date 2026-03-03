@@ -82,6 +82,7 @@ void add_reply_error(redis_client_t *c, const char *err);
 void add_reply_error_length(redis_client_t* rc, const char *s, size_t len);
 void add_reply_error_format(redis_client_t *c, const char *fmt, ...);
 void add_reply_bulk(redis_client_t* c, latte_object_t* obj);
+void add_reply_long_long_with_prefix(redis_client_t *c, long long ll, char prefix);
 void add_reply_help(redis_client_t* c, char** help);
 
 #endif

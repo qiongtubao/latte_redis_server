@@ -18,6 +18,7 @@ set ::all_tests {
     unit/version
     commands/ping
     commands/string
+    commands/expire
 }
 
 

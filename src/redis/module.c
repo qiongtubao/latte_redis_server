@@ -306,12 +306,15 @@ int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const cha
 
 dict_entry_t* redis_module_use_lookup_key(redis_module_ctx_t* ctx, latte_object_t* key) {
     redis_client_t* c = module_get_reply_client(ctx);
-    redis_server_t* server =  (redis_server_t* )c->client.server;
+    redis_server_t* server = (redis_server_t*)c->client.server;
     if (key->type != OBJ_STRING) return NULL;
-    /* Key may be EMBSTR (ptr = inline data, not full sds); build a proper sds for dict lookup. */
     size_t len = string_object_len(key);
     sds key_sds = sds_new_len(key->ptr, len);
     redis_db_t* db = server->dbs + c->dbid;
+    if (expire_if_needed(server, db, key_sds)) {
+        sds_delete(key_sds);
+        return NULL;
+    }
     dict_entry_t* ret = kv_store_dict_find(db->keys, get_kv_store_index_for_key(key_sds), key_sds);
     sds_delete(key_sds);
     return ret;
