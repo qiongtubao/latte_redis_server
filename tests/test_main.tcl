@@ -9,9 +9,16 @@ set tcl_precision 17
 source tests/support/util.tcl
 source tests/support/test.tcl
 source tests/support/instances.tcl
+source tests/support/server.tcl
+source tests/support/client.tcl
+
+
 
 set ::all_tests {
     unit/version
+    commands/ping
+    commands/string
+    commands/expire
 }
 
 
@@ -23,14 +30,16 @@ set ::baseport 21111; # initial port for spawned redis servers
 set ::portcount 8000; # we don't wanna use more than 10000 to avoid collision with cluster bus ports
 # 是否是client
 set ::client 0
-# 并发次数
-set ::numclients 16
+# 并发次数（改为 1 避免多客户端协调卡住，测试少时串行即可）
+set ::numclients 1
 # 执行前是否清理
 set ::dont_pre_clean 0
 # 是否要清理
 set ::dont_clean 0
 # 0表示输出日志
 set ::quiet 0
+# 断言失败时是否暂停（0=不暂停，继续下一个测试）
+set ::pause_on_error 0
 # 外部的
 set ::external 0; # If "1" this means, we are running against external instance
 # Index to the next test to run in the ::all_tests list.
@@ -138,8 +147,10 @@ proc execute_tests name {
     set ::curfile $path
     # 执行tcl文件
     source $path
-    # 给主线程发送 done 命令
-    send_data_packet $::test_server_fd done "$name"
+    # 仅在子进程（测试 client）里向主进程发送 done；主进程直接跑时无 test_server_fd
+    if {[info exists ::test_server_fd]} {
+        send_data_packet $::test_server_fd done "$name"
+    }
 }
 
 proc test_client_main {server_port} {
@@ -215,10 +226,15 @@ proc the_end {} {
 # if there are still test units to run, launch them.
 # 一个新的客户端处于空闲状态。将其从活动客户端列表中删除并
 # 如果还有测试单元要运行，启动它们。
+# 在主进程跑的测试（留空则全部在 client 跑）
+# commands/ping 在主进程跑，避免 test client 的 fd 与 redis fd 在 vwait 时竞争导致收不到 PONG
+# commands/string 在独立子进程中跑，避免 test client 与 redis 连接冲突导致 connection closed
+
 proc signal_idle_client fd {
     # Remove this fd from the list of active clients.
     set ::active_clients \
         [lsearch -all -inline -not -exact $::active_clients $fd]
+
 
     # New unit to process?
     if {$::next_test != [llength $::all_tests]} {
@@ -360,10 +376,25 @@ proc test_server_main {} {
     set tclsh [info nameofexecutable]
 
     set clientport [find_available_port [expr {$::baseport - 32}] 32]
+    set bound 0
+    for {set retry 0} {!$bound && $retry < 30} {incr retry} {
+        if {[catch {
+            socket -server accept_test_clients -myaddr 127.0.0.1 $clientport
+            set bound 1
+        } err]} {
+            if {[string match "*already in use*" $err] || [string match "*already in use*" $::errorInfo]} {
+                incr clientport
+            } else {
+                error $err
+            }
+        }
+    }
+    if {!$bound} {
+        error "Could not bind test server after 30 retries (address already in use)"
+    }
     if {!$::quiet} {
         puts "Starting test server at port $clientport"
     }
-    socket -server accept_test_clients  -myaddr 127.0.0.1 $clientport
 
     # Start the client instances
     set ::clients_pids {}

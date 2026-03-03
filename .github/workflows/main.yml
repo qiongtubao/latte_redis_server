@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+
+jobs:
+  # Memory-only mode tests (without SWAP)
+  mem:
+    strategy:
+      matrix:
+        platform: [ubuntu-24.04]
+    runs-on: ${{ matrix.platform }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+          submodules: true
+    - name: install dependencies
+      run: |
+          sudo apt-get update
+          sudo apt-get -y install libsnappy-dev zlib1g-dev libstdc++6 liburing-dev libevent-dev libunwind-dev libgoogle-glog-dev
+    - name: make
+      run: make -j8
+    - name: test
+      run: make test -j8

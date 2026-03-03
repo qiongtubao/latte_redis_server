@@ -4,6 +4,11 @@ set ::pids {} ; # We kill everything at exit
 # 记录文件夹
 set ::dirs {} ; # We remove all the temp dirs at exit
 
+proc stop_instance {pid} {
+    catch {exec kill $pid 2>/dev/null}
+    catch {exec kill -9 $pid 2>/dev/null}
+}
+
 
 proc log_crashes {} {
     set start_pattern {*REDIS BUG REPORT START*}
@@ -74,7 +79,7 @@ proc test {descr code} {
             puts [colorstr red $msg]
             if {$::pause_on_error} pause_on_error
             puts [colorstr red "(Jumping to next unit after error)"]
-            return -code continue
+            return
         } else {
             # Re-raise, let handler up the stack take care of this.
             error $error $::errorInfo

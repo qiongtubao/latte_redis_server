@@ -6,6 +6,8 @@
 #include "sds/sds.h"
 #include "./server.h"
 
+struct redis_server_t;
+
 
 typedef struct kv_store_t {
     int flags;
@@ -63,5 +65,14 @@ typedef struct redis_db_t {
 
 int db_add_key_value(struct redis_server_t* server, redis_db_t* db, latte_object_t* key, latte_object_t* value);
 int db_add_key_value_internal(struct redis_server_t* server, redis_db_t* db, latte_object_t* key, latte_object_t* value, int update_if_existing);
+
+/* Expire: when_ms is Unix time in milliseconds. 0 = no expire. */
+long long db_get_expire(redis_db_t* db, sds key);
+int db_set_expire(struct redis_server_t* server, redis_db_t* db, sds key, long long when_ms);
+void db_remove_expire(redis_db_t* db, sds key);
+int expire_if_needed(struct redis_server_t* server, redis_db_t* db, sds key);
+void db_delete_key(struct redis_server_t* server, redis_db_t* db, sds key);
+
+int kv_store_dict_delete_key(kv_store_t* kvs, int didx, const void* key);
 
 #endif

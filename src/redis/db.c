@@ -5,7 +5,7 @@
 #include "dict/dict_plugins.h"
 #include "time/localtime.h"
 
-
+static void cumulative_key_count_add(kv_store_t* kvs, int didx, long delta);
 
 int get_kv_store_index_for_key(sds key) {
     return 0;
@@ -86,12 +86,18 @@ int db_add_key_value_internal(redis_server_t* server,redis_db_t* db, latte_objec
     sds key_ptr;
     latte_assert_with_info(get_sds_from_object(key, &key_ptr) == 0, "key is not a string");// "key is not a string"
     int dict_index = get_kv_store_index_for_key(key_ptr);
-    dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, sds_new(key->ptr), &existing);
-    if (update_if_existing && existing) {
+    sds new_key = sds_new(key->ptr);
+    dict_entry_t* de = kv_store_dict_add_raw(db->keys, dict_index, new_key, &existing);
+    if (existing) {
+        sds_delete(new_key);
+        /* Key already exists: update in place (e.g. SET overwrite) to avoid assert crash */
         db_set_value(server, db, key, val, 1, existing);
-        return 1;
+        return 0;
     }
-    latte_assert_with_info(de != NULL, "de is NULL");// 
+    if (de == NULL) {
+        sds_delete(new_key);
+        return -1;
+    }
     init_object_lru_or_lfu(server, val);
     kv_store_dict_set_val(db->keys, dict_index, de, val);
     // signal_key_as_ready(db, key, val->type);
@@ -121,6 +127,15 @@ dict_entry_t* kv_store_dict_find(kv_store_t* kvs, int didx, void* key) {
     dict_t* d = kv_store_get_dict(kvs, didx);
     if (d == NULL) return NULL;
     return dict_find(d, key);
+}
+
+int kv_store_dict_delete_key(kv_store_t* kvs, int didx, const void* key) {
+    dict_t* d = kv_store_get_dict(kvs, didx);
+    if (d == NULL) return DICT_ERR;
+    int ret = dict_delete_key(d, key);
+    if (ret == DICT_OK)
+        cumulative_key_count_add(kvs, didx, -1);
+    return ret;
 }
 
 
@@ -162,6 +177,45 @@ int kv_store_dict_set_val(kv_store_t* kvs, int didx, dict_entry_t* de, void* val
     dict_t * d = kv_store_get_dict(kvs, didx);
     dict_set_val(d, de, val);
     return 0;
+}
+
+/* ---------- Expire helpers ---------- */
+long long db_get_expire(redis_db_t* db, sds key) {
+    int didx = get_kv_store_index_for_key(key);
+    dict_entry_t* de = kv_store_dict_find(db->expires, didx, key);
+    if (!de) return 0;
+    return (long long)(uintptr_t)dict_get_entry_val(de);
+}
+
+int db_set_expire(redis_server_t* server, redis_db_t* db, sds key, long long when_ms) {
+    UNUSED(server);
+    int didx = get_kv_store_index_for_key(key);
+    dict_entry_t* existing = NULL;
+    dict_entry_t* de = kv_store_dict_add_raw(db->expires, didx, key, &existing);
+    if (!de) return -1;
+    kv_store_dict_set_val(db->expires, didx, de, (void*)(uintptr_t)when_ms);
+    return 0;
+}
+
+void db_remove_expire(redis_db_t* db, sds key) {
+    int didx = get_kv_store_index_for_key(key);
+    kv_store_dict_delete_key(db->expires, didx, key);
+}
+
+void db_delete_key(redis_server_t* server, redis_db_t* db, sds key) {
+    UNUSED(server);
+    int didx = get_kv_store_index_for_key(key);
+    kv_store_dict_delete_key(db->expires, didx, key);
+    kv_store_dict_delete_key(db->keys, didx, key);
+}
+
+int expire_if_needed(redis_server_t* server, redis_db_t* db, sds key) {
+    dict_entry_t* de = kv_store_dict_find(db->expires, get_kv_store_index_for_key(key), key);
+    if (!de) return 0;
+    long long when_ms = (long long)(uintptr_t)dict_get_entry_val(de);
+    if (mstime() < when_ms) return 0;
+    db_delete_key(server, db, key);
+    return 1;
 }
 
 int kv_store_dict_set_key(kv_store_t* kvs, int didx, dict_entry_t* de, void* key) {
@@ -214,10 +268,10 @@ size_t kv_store_dict_meta_data_size(dict_t *d) {
 
 dict_func_t kv_store_keys_dict_type = {
     dict_sds_hash,
-    NULL, 
+    NULL,
     NULL,
     dict_sds_key_compare,
-    NULL,
+    dict_sds_destructor,
     dict_object_destructor,
     dict_resize_allowed,
     // kv_store_dict_rehashing_started,
@@ -227,16 +281,15 @@ dict_func_t kv_store_keys_dict_type = {
     // .embedded_entry = 1,
 };
 
+/* Expires dict: key = sds (dup on add), val = (void*)(uintptr_t) mstime */
 dict_func_t kv_store_expires_dict_type = {
     dict_sds_hash,
-    NULL,
+    dict_sds_dup,
     NULL,
     dict_sds_key_compare,
-    NULL,
+    dict_sds_destructor,
     NULL,
     dict_resize_allowed,
-    // kv_store_dict_rehashing_started,
-    // kv_store_dict_rehashing_completed,
     kv_store_dict_meta_data_size,
 };
 
