@@ -7,7 +7,8 @@
 #include <string.h>
 #define REDISMODULE_CORE 1
 #include "redis_module.h"
-#include "object/string.h"
+#include "../object/string.h"
+#include "object/object_manager.h"
 #include "debug/latte_debug.h"
 #include "../shared/shared.h"
 #include "utils/utils.h"
@@ -307,7 +308,8 @@ int redis_module_use_reply_with_simple_string(redis_module_ctx_t *ctx, const cha
 dict_entry_t* redis_module_use_lookup_key(redis_module_ctx_t* ctx, latte_object_t* key) {
     redis_client_t* c = module_get_reply_client(ctx);
     redis_server_t* server = (redis_server_t*)c->client.server;
-    if (key->type != OBJ_STRING) return NULL;
+    const char* type_name = object_manager_get_type_name((uint8_t)key->type);
+    if (!type_name || strcmp(type_name, "string") != 0) return NULL;
     size_t len = string_object_len(key);
     sds key_sds = sds_new_len(key->ptr, len);
     redis_db_t* db = server->dbs + c->dbid;
@@ -346,7 +348,9 @@ latte_object_t* redis_module_use_db_entry_set_value(dict_entry_t* de, latte_obje
 }
 
 int redis_module_use_object_is_string(latte_object_t* o) {
-    return o->type == OBJ_STRING;
+    if (!o) return 0;
+    const char* type_name = object_manager_get_type_name((uint8_t)o->type);
+    return (type_name && strcmp(type_name, "string") == 0);
 }
 
 void redis_module_use_reply_with_wrong_type_error(redis_module_ctx_t* ctx)  {

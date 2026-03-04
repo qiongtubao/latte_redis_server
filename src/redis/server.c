@@ -6,6 +6,8 @@
 #include "debug/latte_debug.h"
 #include "utils/utils.h"
 #include "../shared/shared.h"
+#include "object/object_manager.h"
+#include "object_string_register.h"
 /** utils  **/
 /* Given the filename, return the absolute path as an SDS string, or NULL
  * if it fails for some reason. Note that "filename" may be an absolute path
@@ -104,6 +106,9 @@ void init_redis_server(struct redis_server_t* rs) {
 int start_redis_server(struct redis_server_t* redis_server, int argc, sds* argv) {
     log_module_init();
     log_add_stdout(LATTE_LIB, LOG_INFO);
+    /* Initialize object_manager and register object types */
+    global_object_manager_init();
+    register_object_string_type();
     init_redis_server(redis_server);
     init_shared_objects();
     redis_server->exec_argc = argc;

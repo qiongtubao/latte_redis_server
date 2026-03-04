@@ -8,7 +8,13 @@
 #include "../redis/server.h"
 #include "time/localtime.h"
 #include "utils/utils.h"
-#include "object/string.h"
+#include "../object/string.h"
+#include "../../deps/latte_c/src/odb/odb.h"
+#include "../../deps/latte_c/src/object/object_manager.h"
+#include "../../deps/latte_c/src/dict/dict.h"
+#include "../../deps/latte_c/src/iterator/iterator.h"
+#include "../../deps/latte_c/src/error/error.h"
+#include <stdio.h>
 
 struct acl_category_item_t acl_command_categories[] = {
     {"write", CMD_WRITE|CMD_CATEGORY_WRITE},
@@ -192,6 +198,384 @@ void ping_command(redis_client_t* c) {
     
 }
 
+void save_command(redis_client_t* c) {
+    redis_server_t* server = (redis_server_t*)c->client.server;
+    const char* filename = "dump.ldb";
+    
+    if (c->argc > 2) {
+        add_reply_error_format(c, "wrong number of arguments for '%s' command",
+            c->cmd->name);
+        return;
+    }
+    if (c->argc == 2) {
+        filename = c->argv[1]->ptr;
+    }
+    
+    FILE* fp = fopen(filename, "wb");
+    if (!fp) {
+        add_reply_error_format(c, "ERR Failed to open file: %s", filename);
+        return;
+    }
+    
+    oio* o = odb_oio_create_file(fp);
+    if (!o) {
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to create oio");
+        return;
+    }
+    
+    /* Save object manager registry first */
+    latte_error_t* err = object_manager_save_registry(o);
+    if (err) {
+        error_delete(err);
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to save object registry");
+        return;
+    }
+    
+    long long total_keys = 0;
+    
+    /* Iterate through all databases */
+    for (int dbid = 0; dbid < server->db_num; dbid++) {
+        redis_db_t* db = server->dbs + dbid;
+        
+        /* Check if database has any keys */
+        int has_keys = 0;
+        for (long long didx = 0; didx < db->keys->num_dicts; didx++) {
+            dict_t* d = kv_store_get_dict(db->keys, didx);
+            if (!d) continue;
+            if (dict_size(d) > 0) {
+                has_keys = 1;
+                break;
+            }
+        }
+        
+        /* Only write SELECTDB if database has keys */
+        if (!has_keys) continue;
+        
+        /* Write SELECTDB marker: 0xFF for SELECTDB, then dbid */
+        if (odb_write_u8(o, 0xFF) == 0 || odb_write_u32(o, dbid) == 0) {
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Failed to save database id");
+            return;
+        }
+        
+        /* Iterate through all dicts in kv_store */
+        for (long long didx = 0; didx < db->keys->num_dicts; didx++) {
+            dict_t* d = kv_store_get_dict(db->keys, didx);
+            if (!d) continue;
+            
+            /* Iterate through all keys in this dict */
+            latte_iterator_t* it = dict_get_latte_iterator(d);
+            while (protected_dict_iterator_has_next(it)) {
+                latte_iterator_pair_t* pair = (latte_iterator_pair_t*)protected_dict_iterator_next(it);
+                sds key = (sds)iterator_pair_key(pair);
+                latte_object_t* val = (latte_object_t*)iterator_pair_value(pair);
+                
+                if (!key || !val) continue;
+                
+                /* Get expiration time */
+                long long expire = db_get_expire(db, key);
+                
+                /* Write expiration time if exists: 0xFE for EXPIRETIME_MS */
+                if (expire > 0) {
+                    if (odb_write_u8(o, 0xFE) == 0 || odb_write_u64(o, (uint64_t)expire) == 0) {
+                        protected_dict_iterator_delete(it);
+                        odb_oio_free(o);
+                        fclose(fp);
+                        add_reply_error(c, "ERR Failed to save expiration time");
+                        return;
+                    }
+                }
+                
+                /* Write key */
+                if (odb_write_string(o, key, sds_len(key)) == 0) {
+                    protected_dict_iterator_delete(it);
+                    odb_oio_free(o);
+                    fclose(fp);
+                    add_reply_error(c, "ERR Failed to save key");
+                    return;
+                }
+                
+                /* Write value using object_manager */
+                err = object_manager_save(o, val);
+                if (err) {
+                    error_delete(err);
+                    protected_dict_iterator_delete(it);
+                    odb_oio_free(o);
+                    fclose(fp);
+                    add_reply_error(c, "ERR Failed to save object");
+                    return;
+                }
+                
+                total_keys++;
+            }
+            protected_dict_iterator_delete(it);
+        }
+    }
+    
+    /* Write EOF marker: 0xFD */
+    if (odb_write_u8(o, 0xFD) == 0) {
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to write EOF");
+        return;
+    }
+    
+    /* Flush and close */
+    if (o->flush(o) == 0) {
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to flush file");
+        return;
+    }
+    
+    odb_oio_free(o);
+    fclose(fp);
+    
+    add_reply(c, shared.ok);
+}
+
+void load_command(redis_client_t* c) {
+    redis_server_t* server = (redis_server_t*)c->client.server;
+    const char* filename = "dump.ldb";
+    
+    if (c->argc > 2) {
+        add_reply_error_format(c, "wrong number of arguments for '%s' command",
+            c->cmd->name);
+        return;
+    }
+    if (c->argc == 2) {
+        filename = c->argv[1]->ptr;
+    }
+    
+    FILE* fp = fopen(filename, "rb");
+    if (!fp) {
+        add_reply_error_format(c, "ERR Failed to open file: %s", filename);
+        return;
+    }
+    
+    oio* o = odb_oio_create_file(fp);
+    if (!o) {
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to create oio");
+        return;
+    }
+    
+    /* Load object manager registry */
+    uint8_t id_map[256];
+    latte_error_t* err = object_manager_load_registry(o, id_map);
+    if (err) {
+        error_delete(err);
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to load object registry");
+        return;
+    }
+    
+    /* Clear all existing data */
+    for (int dbid = 0; dbid < server->db_num; dbid++) {
+        redis_db_t* db = server->dbs + dbid;
+        if (!db || !db->keys) continue;
+        
+        /* Iterate through all dicts and delete all keys */
+        /* Use a two-pass approach: first collect all keys, then delete them */
+        for (long long didx = 0; didx < db->keys->num_dicts; didx++) {
+            dict_t* d = kv_store_get_dict(db->keys, didx);
+            if (!d) continue;
+            
+            /* First pass: collect all keys */
+            sds* keys_to_delete = NULL;
+            size_t key_count = 0;
+            size_t key_capacity = 0;
+            
+            latte_iterator_t* it = dict_get_latte_iterator(d);
+            if (!it) continue;
+            
+            while (protected_dict_iterator_has_next(it)) {
+                latte_iterator_pair_t* pair = (latte_iterator_pair_t*)protected_dict_iterator_next(it);
+                if (!pair) break;
+                sds key = (sds)iterator_pair_key(pair);
+                if (key) {
+                    if (key_count >= key_capacity) {
+                        size_t new_capacity = key_capacity ? key_capacity * 2 : 16;
+                        sds* new_keys = zrealloc(keys_to_delete, new_capacity * sizeof(sds));
+                        if (!new_keys) {
+                            /* Out of memory - free what we have and break */
+                            for (size_t i = 0; i < key_count; i++) {
+                                sds_delete(keys_to_delete[i]);
+                            }
+                            zfree(keys_to_delete);
+                            protected_dict_iterator_delete(it);
+                            break;
+                        }
+                        keys_to_delete = new_keys;
+                        key_capacity = new_capacity;
+                    }
+                    keys_to_delete[key_count++] = sds_dup(key);
+                }
+            }
+            protected_dict_iterator_delete(it);
+            
+            /* Second pass: delete all collected keys */
+            for (size_t i = 0; i < key_count; i++) {
+                /* db_delete_key will find and delete by content, freeing the dict's key */
+                db_delete_key(server, db, keys_to_delete[i]);
+                /* Free our copy */
+                sds_delete(keys_to_delete[i]);
+            }
+            if (keys_to_delete) zfree(keys_to_delete);
+        }
+    }
+    
+    int current_db = 0;
+    long long total_keys = 0;
+    
+    /* Load data */
+    while (1) {
+        uint8_t opcode;
+        if (odb_read_u8(o, &opcode) == 0) {
+            /* EOF or read error */
+            break;
+        }
+        
+        /* Check for EOF marker: 0xFD */
+        if (opcode == 0xFD) {
+            break;
+        }
+        
+        /* SELECTDB marker: 0xFF */
+        if (opcode == 0xFF) {
+            uint32_t dbid;
+            if (odb_read_u32(o, &dbid) == 0) {
+                odb_oio_free(o);
+                fclose(fp);
+                add_reply_error(c, "ERR Failed to read database id");
+                return;
+            }
+            if (dbid >= server->db_num) {
+                odb_oio_free(o);
+                fclose(fp);
+                add_reply_error_format(c, "ERR Invalid database id: %u", dbid);
+                return;
+            }
+            current_db = (int)dbid;
+            continue;
+        }
+        
+        long long expire = 0;
+        /* EXPIRETIME_MS marker: 0xFE */
+        if (opcode == 0xFE) {
+            uint64_t expire64;
+            if (odb_read_u64(o, &expire64) == 0) {
+                odb_oio_free(o);
+                fclose(fp);
+                add_reply_error(c, "ERR Failed to read expiration time");
+                return;
+            }
+            expire = (long long)expire64;
+            /* Read next opcode */
+            if (odb_read_u8(o, &opcode) == 0) {
+                odb_oio_free(o);
+                fclose(fp);
+                add_reply_error(c, "ERR Failed to read opcode after expiration time");
+                return;
+            }
+        }
+        
+        /* Read key */
+        sds key = odb_read_string(o);
+        if (!key) {
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Failed to read key");
+            return;
+        }
+        
+        /* Read value using object_manager */
+        void* obj_ptr = NULL;
+        err = object_manager_load(o, &obj_ptr, id_map);
+        if (err) {
+            error_delete(err);
+            sds_delete(key);
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Failed to load object");
+            return;
+        }
+        
+        latte_object_t* val = (latte_object_t*)obj_ptr;
+        if (!val) {
+            sds_delete(key);
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Failed to load object");
+            return;
+        }
+        
+        /* Add key-value to database */
+        redis_db_t* db = server->dbs + current_db;
+        if (!db) {
+            sds_delete(key);
+            object_manager_release_object(val);
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Invalid database");
+            return;
+        }
+        
+        latte_object_t* key_obj = latte_object_string_new( key);
+        if (!key_obj) {
+            sds_delete(key);
+            object_manager_release_object(val);
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Failed to create key object");
+            return;
+        }
+        
+        int ret = db_add_key_value(server, db, key_obj, val);
+        latte_object_decr_ref_count(key_obj);
+        
+        if (ret != 0) {
+            sds_delete(key);
+            object_manager_release_object(val);
+            odb_oio_free(o);
+            fclose(fp);
+            add_reply_error(c, "ERR Failed to add key-value to database");
+            return;
+        }
+        
+        /* Set expiration if exists */
+        /* Find the actual key stored in database */
+        if (expire > 0) {
+            int didx = get_kv_store_index_for_key(key);
+            dict_entry_t* de = kv_store_dict_find(db->keys, didx, key);
+            if (de) {
+                sds stored_key = (sds)dict_get_entry_key(de);
+                if (stored_key) {
+                    /* db_set_expire will copy the key, so we can use stored_key */
+                    if (db_set_expire(server, db, stored_key, expire) != 0) {
+                        /* Failed to set expire, but continue loading */
+                        /* Don't fail the entire load operation for expire errors */
+                    }
+                }
+            }
+        }
+        
+        sds_delete(key);  /* Free the temporary key */
+        
+        total_keys++;
+    }
+    
+    odb_oio_free(o);
+    fclose(fp);
+    
+    add_reply(c, shared.ok);
+}
+
 /*  ==================== commands ==================== */
 
 struct redis_command_t redis_command_table[] = {
@@ -218,6 +602,16 @@ struct redis_command_t redis_command_table[] = {
     {
         "expire", expire_command, 3,
         "write fast",
+        0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
+    },
+    {
+        "save", save_command, -1,
+        "admin",
+        0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
+    },
+    {
+        "load", load_command, -1,
+        "admin",
         0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
     }
 };

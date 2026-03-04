@@ -19,11 +19,19 @@ void update_metric_cron(void* server) {
     metric_track_instantaneous(rs->metric, "command", rs->metric_stat_numcommands, current_time, factor);
 }
 
+void expire_metric_cron(void* server) {
+    // redis_server_t* rs = (redis_server_t*)server;
+    // (rs->expires);
+
+}
+
 int init_redis_server_crons(redis_server_t* redis_server) {
     // init_server_crons((void*)redis_server);
     cron_t* updateCacheTimeCron = cron_new(update_cache_time_cron, 1);
     cron_manager_add_cron(redis_server->server.cron_manager, updateCacheTimeCron);
     cron_t* updateMetricCron = cron_new(update_metric_cron, 100);
     cron_manager_add_cron(redis_server->server.cron_manager, updateMetricCron);
+    // cron_t* activeExpireCycleCron = cron_new(expire_metric_cron, 1000);
+    // cron_manager_add_cron(redis_server->server.cron_manager, activeExpireCycleCron);
     return 0;
 }

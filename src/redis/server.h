@@ -54,6 +54,9 @@ typedef struct redis_server_t {
     /** metric */
     metric_t* metric;
     long long metric_stat_numcommands;
+
+    // /** expire */
+    // eb* expires;
 } redis_server_t;
 
 void update_cache_time(struct redis_server_t* server);

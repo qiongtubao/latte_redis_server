@@ -1,7 +1,7 @@
 #ifndef __REDIS_SHARED_H
 #define __REDIS_SHARED_H
 #include "sds/sds.h"
-#include "object/string.h"
+#include "../object/string.h"
 #define OBJ_SHARED_BULKHDR_LEN 32
 typedef struct shared_objects_t {
    latte_object_t* crlf, *ok, *pong, *wrongtypeerr,

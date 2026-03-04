@@ -1,6 +1,8 @@
 
 #ifndef __REDIS_COMMAND_H
 #define __REDIS_COMMAND_H
+
+#include <stdint.h>
 #include "object/object.h"
 
 /* Command call flags, see call() function */

@@ -2,7 +2,7 @@
 #include "server.h"
 #include "debug/latte_debug.h"
 #include <string.h>
-#include "object/string.h"
+#include "../object/string.h"
 #include "utils/utils.h"
 /* Get the class of a client, used in order to enforce limits to different
  * classes of clients.
@@ -188,7 +188,7 @@ int process_inline_buffer(redis_client_t* rc){
     }
     /* Create redis objects for all arguments. */
     for (rc->argc = 0, j = 0; j < argc; j++) {
-        rc->argv[rc->argc] = latte_object_new(OBJ_STRING,argv[j]);
+        rc->argv[rc->argc] = latte_object_string_new(argv[j]);
         rc->argc++;
         rc->argv_len_sum += sds_len(argv[j]);
     }
@@ -327,7 +327,7 @@ int process_multibulk_buffer(redis_client_t* rc) {
                 rc->bulk_len >= PROTO_MBULK_BIG_ARG &&
                 sds_len(rc->client.querybuf) == (size_t)(rc->bulk_len+2))
             {
-                rc->argv[rc->argc++] = latte_object_new(OBJ_STRING,rc->client.querybuf);
+                rc->argv[rc->argc++] = latte_object_string_new(rc->client.querybuf);
                 rc->argv_len_sum += rc->bulk_len;
                 sds_incr_len(rc->client.querybuf,-2); /* remove CRLF */
                 /* Assume that if we saw a fat argument we'll see another one
@@ -335,8 +335,8 @@ int process_multibulk_buffer(redis_client_t* rc) {
                 rc->client.querybuf = sds_new_len(SDS_NOINIT,rc->bulk_len+2);
                 sds_clear(rc->client.querybuf);
             } else {
-                rc->argv[rc->argc++] =
-                    string_object_new(rc->client.querybuf+rc->client.qb_pos,rc->bulk_len);
+                sds s = sds_new_len(rc->client.querybuf+rc->client.qb_pos, rc->bulk_len);
+                rc->argv[rc->argc++] = latte_object_string_new( s);
                 rc->argv_len_sum += rc->bulk_len;
                 rc->client.qb_pos += rc->bulk_len+2;
             }

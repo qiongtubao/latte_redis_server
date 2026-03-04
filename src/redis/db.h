@@ -45,6 +45,7 @@ typedef struct {
 } kv_store_dict_meta_data_t;
 
 int get_kv_store_index_for_key(sds key);
+dict_t* kv_store_get_dict(kv_store_t* kvs, int didx);
 dict_entry_t* kv_store_dict_add_raw(kv_store_t* kvs, int didx, void *key, dict_entry_t** existing);
 int kv_store_dict_set_val(kv_store_t* kvs, int didx, dict_entry_t* de, void* val);
 int kv_store_dict_set_key(kv_store_t* kvs, int didx, dict_entry_t* de, void* key);

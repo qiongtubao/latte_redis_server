@@ -1,8 +1,28 @@
 #include "slowlog.h"
-#include "object/string.h"
+#include "../object/string.h"
+#include "object/object_manager.h"
+#include <limits.h>
 
 #define SLOWLOG_ENTRY_MAX_ARGC 32
 #define SLOWLOG_ENTRY_MAX_STRING 128
+#define OBJ_SHARED_REFCOUNT INT_MAX
+
+/* 复制字符串对象 */
+static latte_object_t* dup_string_object(latte_object_t* obj) {
+    if (!obj || !sds_encoded_object(obj)) {
+        return NULL;
+    }
+    sds s = (sds)obj->ptr;
+    sds dup_s = sds_dup(s);
+    if (!dup_s) {
+        return NULL;
+    }
+    latte_object_t* new_obj = latte_object_string_new(dup_s);
+    if (!new_obj) {
+        sds_delete(dup_s);
+    }
+    return new_obj;
+}
 
 static slowlog_entry_t* slowlog_entry_new(long long id, 
     redis_client_t* client) {
@@ -22,13 +42,12 @@ static slowlog_entry_t* slowlog_entry_new(long long id,
     entry->argv = zmalloc(sizeof(latte_object_t*) * argc);
     for (int j = 0; j < argc; j++) {
         if (client->argc != argc && j == argc-1) {
-            entry->argv[j] = latte_object_new(OBJ_STRING,
+            entry->argv[j] = latte_object_string_new(
                 sds_cat_printf(sds_empty(),"... (%d more arguments)",
                 argc-argc+1));
         } else {
             /* Trim too long strings as well... */
-            if (client->argv[j]->type == OBJ_STRING &&
-                sds_encoded_object(client->argv[j]) &&
+            if (sds_encoded_object(client->argv[j]) &&
                 sds_len(client->argv[j]->ptr) > SLOWLOG_ENTRY_MAX_STRING)
             {
                 sds s = sds_new_len(client->argv[j]->ptr, SLOWLOG_ENTRY_MAX_STRING);
@@ -36,7 +55,7 @@ static slowlog_entry_t* slowlog_entry_new(long long id,
                 s = sds_cat_printf(s,"... (%lu more bytes)",
                     (unsigned long)
                     sds_len(client->argv[j]->ptr) - SLOWLOG_ENTRY_MAX_STRING);
-                entry->argv[j] = latte_object_new(OBJ_STRING,s);
+                entry->argv[j] = latte_object_string_new(s);
             } else if (client->argv[j]->refcount == OBJ_SHARED_REFCOUNT) {
                 entry->argv[j] = client->argv[j];
             } else {
@@ -51,8 +70,8 @@ static slowlog_entry_t* slowlog_entry_new(long long id,
         }
     }
     entry->argc = argc;
-    entry->client_name = client_get_name(client) ? sds_dup(client_get_name(client)) : NULL;
-    entry->client_ip = sds_new(client_get_peer_id(client));
+    entry->client_name = client_get_name((latte_client_t*)client) ? sds_dup(client_get_name((latte_client_t*)client)) : NULL;
+        entry->client_ip = sds_new(client_get_peer_id((latte_client_t*)client));
     return entry;
 }
 

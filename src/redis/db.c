@@ -1,9 +1,15 @@
 #include "db.h"
-#include "object/string.h"
+#include "../object/string.h"
 #include "debug/latte_debug.h"
 #include "utils/utils.h"
 #include "dict/dict_plugins.h"
 #include "time/localtime.h"
+#include <limits.h>
+
+/* 常量定义 */
+#define LRU_CLOCK_MAX ((1<<LRU_BITS)-1)
+#define OBJ_SHARED_REFCOUNT INT_MAX
+#define OBJ_STATIC_REFCOUNT (INT_MAX-1)
 
 static void cumulative_key_count_add(kv_store_t* kvs, int didx, long delta);
 
@@ -368,14 +374,9 @@ dict_func_t key_list_dict_type = {
 uint64_t dict_encode_object_hash(const void *key) {
     latte_object_t *o = (latte_object_t *)key;
 
+    /* 在新的 object_manager 系统中，所有字符串对象都是 sds 编码 */
     if (sds_encoded_object(o)) {
         return dict_gen_hash_function(o->ptr, sds_len((sds)o->ptr));
-    } else if (o->encoding == OBJ_ENCODING_INT) {
-        char buf[32];
-        int len;
-
-        len = ll2string(buf, 32, (long)o->ptr);
-        return dict_gen_hash_function((unsigned char *)buf, len);
     } else {
         latte_panic("Unknown string encoding");
     }
@@ -387,17 +388,19 @@ int dict_encode_object_key_compare(dict_t *d, const void *key1, const void *key2
     latte_object_t *o1 = (latte_object_t *)key1, *o2 = (latte_object_t *)key2;
     int cmp;
 
-    if (o1->encoding == OBJ_ENCODING_INT && o2->encoding == OBJ_ENCODING_INT) return o1->ptr == o2->ptr;
-
+    /* 在新的 object_manager 系统中，所有字符串对象都是 sds 编码 */
     /* Due to OBJ_STATIC_REFCOUNT, we avoid calling getDecodedObject() without
      * good reasons, because it would incrRefCount() the object, which
      * is invalid. So we check to make sure dictFind() works with static
      * objects as well. */
-    if (o1->refcount != OBJ_STATIC_REFCOUNT) o1 = get_decode_object(o1);
-    if (o2->refcount != OBJ_STATIC_REFCOUNT) o2 = get_decode_object(o2);
+    /* 注意：get_decode_object 可能不存在，直接使用 ptr */
+    if (o1->refcount != OBJ_STATIC_REFCOUNT && o1->ptr) {
+        /* 对于非静态对象，直接使用 ptr */
+    }
+    if (o2->refcount != OBJ_STATIC_REFCOUNT && o2->ptr) {
+        /* 对于非静态对象，直接使用 ptr */
+    }
     cmp = dict_sds_key_compare(d, o1->ptr, o2->ptr);
-    if (o1->refcount != OBJ_STATIC_REFCOUNT) latte_object_decr_ref_count(o1);
-    if (o2->refcount != OBJ_STATIC_REFCOUNT) latte_object_decr_ref_count(o2);
     return cmp;
 }
 

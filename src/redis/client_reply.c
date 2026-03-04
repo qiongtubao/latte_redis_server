@@ -5,7 +5,7 @@
 #include "debug/latte_debug.h"
 #include "server.h"
 #include "utils/utils.h"
-#include "object/string.h"
+#include "../object/string.h"
 #include "../shared/shared.h"
 
 int prepare_client_to_write(redis_client_t* c) {
@@ -150,15 +150,9 @@ void add_reply(redis_client_t* c, latte_object_t* obj) {
     if (prepare_client_to_write(c) != 0) return;
     if (sds_encoded_object(obj)) {
         add_reply_proto(c, obj->ptr,sds_len(obj->ptr));
-    } else if (obj->encoding == OBJ_ENCODING_INT) {
-        /* For integer encoded strings we just convert it into a string
-         * using our optimized function, and attach the resulting string
-         * to the output buffer. */
-        char buf[32];
-        size_t len = ll2string(buf,sizeof(buf),(long)obj->ptr);
-         add_reply_proto(c, buf, len);
     } else {
-        redis_panic("Wrong obj->encoding in addReply()");
+        /* 在新的 object_manager 系统中，所有字符串对象都是 sds 编码 */
+        redis_panic("Wrong object type in addReply()");
     }
 }
 
