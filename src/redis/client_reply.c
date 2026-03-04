@@ -6,6 +6,7 @@
 #include "server.h"
 #include "utils/utils.h"
 #include "../object/string.h"
+#include "object/object_manager.h"
 #include "../shared/shared.h"
 
 int prepare_client_to_write(redis_client_t* c) {
@@ -148,11 +149,26 @@ void add_reply_error_format(redis_client_t *c, const char *fmt, ...) {
 
 void add_reply(redis_client_t* c, latte_object_t* obj) {
     if (prepare_client_to_write(c) != 0) return;
+    if (!obj) {
+        add_reply_error(c, "ERR Internal error: null object");
+        return;
+    }
     if (sds_encoded_object(obj)) {
-        add_reply_proto(c, obj->ptr,sds_len(obj->ptr));
+        if (obj->ptr) {
+            add_reply_proto(c, obj->ptr, sds_len((sds)obj->ptr));
+        } else {
+            add_reply_error(c, "ERR Internal error: null ptr in string object");
+        }
     } else {
         /* 在新的 object_manager 系统中，所有字符串对象都是 sds 编码 */
-        redis_panic("Wrong object type in addReply()");
+        /* 如果对象不是字符串类型，尝试获取类型名并记录错误 */
+        const char* type_name = object_manager_get_type_name((uint8_t)obj->type);
+        if (type_name) {
+            LATTE_LIB_LOG(LOG_ERROR, "add_reply: wrong object type '%s' (expected string)", type_name);
+        } else {
+            LATTE_LIB_LOG(LOG_ERROR, "add_reply: unknown object type %u", (unsigned)obj->type);
+        }
+        add_reply_error(c, "ERR Internal error: wrong object type");
     }
 }
 

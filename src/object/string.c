@@ -33,7 +33,6 @@ latte_object_t* latte_object_string_new(sds s) {
 }
 
 int sds_encoded_object(latte_object_t* obj) {
-    LATTE_LIB_LOG(LOG_ERROR, "sds_encoded_object:%p", obj);
     if (!obj || obj->ptr == NULL) return 0;
     
     const char* type_name = object_manager_get_type_name((uint8_t)obj->type);

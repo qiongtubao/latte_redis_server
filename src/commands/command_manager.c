@@ -199,6 +199,7 @@ void ping_command(redis_client_t* c) {
 }
 
 void save_command(redis_client_t* c) {
+    LATTE_LIB_LOG(LOG_INFO, "save_command: start");
     redis_server_t* server = (redis_server_t*)c->client.server;
     const char* filename = "dump.ldb";
     
@@ -208,7 +209,11 @@ void save_command(redis_client_t* c) {
         return;
     }
     if (c->argc == 2) {
-        filename = c->argv[1]->ptr;
+        if (!sds_encoded_object(c->argv[1])) {
+            add_reply_error(c, "ERR Invalid filename");
+            return;
+        }
+        filename = (const char*)c->argv[1]->ptr;
     }
     
     FILE* fp = fopen(filename, "wb");
@@ -225,56 +230,115 @@ void save_command(redis_client_t* c) {
     }
     
     /* Save object manager registry first */
+    LATTE_LIB_LOG(LOG_INFO, "save_command: saving registry");
     latte_error_t* err = object_manager_save_registry(o);
     if (err) {
+        LATTE_LIB_LOG(LOG_ERROR, "save_command: failed to save registry");
         error_delete(err);
         odb_oio_free(o);
         fclose(fp);
         add_reply_error(c, "ERR Failed to save object registry");
         return;
     }
+    LATTE_LIB_LOG(LOG_INFO, "save_command: registry saved");
     
     long long total_keys = 0;
     
+    LATTE_LIB_LOG(LOG_INFO, "save_command: iterating databases, db_num=%d", server->db_num);
+    if (!server->dbs) {
+        LATTE_LIB_LOG(LOG_ERROR, "save_command: server->dbs is NULL");
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Internal error: server->dbs is NULL");
+        return;
+    }
+    LATTE_LIB_LOG(LOG_INFO, "save_command: server->dbs is valid, starting loop");
     /* Iterate through all databases */
     for (int dbid = 0; dbid < server->db_num; dbid++) {
+        LATTE_LIB_LOG(LOG_INFO, "save_command: checking db %d", dbid);
         redis_db_t* db = server->dbs + dbid;
-        
+        if (!db) {
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d is NULL", dbid);
+            continue;
+        }
+        LATTE_LIB_LOG(LOG_INFO, "save_command: db %d is valid, checking keys", dbid);
+        if (!db->keys) {
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d keys is NULL", dbid);
+            continue;
+        }
+        LATTE_LIB_LOG(LOG_INFO, "save_command: db %d has keys, num_dicts=%lld", dbid, (long long)db->keys->num_dicts);
         /* Check if database has any keys */
         int has_keys = 0;
         for (long long didx = 0; didx < db->keys->num_dicts; didx++) {
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d checking dict %lld", dbid, didx);
             dict_t* d = kv_store_get_dict(db->keys, didx);
-            if (!d) continue;
-            if (dict_size(d) > 0) {
+            if (!d) {
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld is NULL", dbid, didx);
+                continue;
+            }
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld is valid, getting size", dbid, didx);
+            long long dict_sz = dict_size(d);
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld size=%lld", dbid, didx, dict_sz);
+            if (dict_sz > 0) {
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld has %lld keys", dbid, didx, dict_sz);
                 has_keys = 1;
                 break;
             }
         }
         
         /* Only write SELECTDB if database has keys */
-        if (!has_keys) continue;
+        if (!has_keys) {
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d has no keys, skipping", dbid);
+            continue;
+        }
         
+        LATTE_LIB_LOG(LOG_INFO, "save_command: saving db %d", dbid);
         /* Write SELECTDB marker: 0xFF for SELECTDB, then dbid */
+        LATTE_LIB_LOG(LOG_INFO, "save_command: writing SELECTDB for db %d", dbid);
         if (odb_write_u8(o, 0xFF) == 0 || odb_write_u32(o, dbid) == 0) {
+            LATTE_LIB_LOG(LOG_ERROR, "save_command: failed to write SELECTDB for db %d", dbid);
             odb_oio_free(o);
             fclose(fp);
             add_reply_error(c, "ERR Failed to save database id");
             return;
         }
         
+        LATTE_LIB_LOG(LOG_INFO, "save_command: iterating dicts in db %d", dbid);
         /* Iterate through all dicts in kv_store */
         for (long long didx = 0; didx < db->keys->num_dicts; didx++) {
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d getting dict %lld", dbid, didx);
             dict_t* d = kv_store_get_dict(db->keys, didx);
-            if (!d) continue;
+            if (!d) {
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld is NULL, skipping", dbid, didx);
+                continue;
+            }
             
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld is valid, creating iterator", dbid, didx);
             /* Iterate through all keys in this dict */
             latte_iterator_t* it = dict_get_latte_iterator(d);
+            if (!it) {
+                LATTE_LIB_LOG(LOG_ERROR, "save_command: failed to create iterator for db %d dict %lld", dbid, didx);
+                continue;
+            }
+            LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld iterator created, iterating keys", dbid, didx);
+            int key_count = 0;
             while (protected_dict_iterator_has_next(it)) {
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld has next key %d", dbid, didx, key_count);
                 latte_iterator_pair_t* pair = (latte_iterator_pair_t*)protected_dict_iterator_next(it);
+                if (!pair) {
+                    LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld pair is NULL, breaking", dbid, didx);
+                    break;
+                }
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld got pair, getting key and value", dbid, didx);
                 sds key = (sds)iterator_pair_key(pair);
                 latte_object_t* val = (latte_object_t*)iterator_pair_value(pair);
                 
-                if (!key || !val) continue;
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld key=%p val=%p", dbid, didx, key, val);
+                if (!key || !val) {
+                    LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld key or val is NULL, skipping", dbid, didx);
+                    continue;
+                }
+                LATTE_LIB_LOG(LOG_INFO, "save_command: db %d dict %lld processing key %d", dbid, didx, key_count++);
                 
                 /* Get expiration time */
                 long long expire = db_get_expire(db, key);
@@ -300,8 +364,10 @@ void save_command(redis_client_t* c) {
                 }
                 
                 /* Write value using object_manager */
+                LATTE_LIB_LOG(LOG_DEBUG, "save_command: saving object type=%u", (unsigned)val->type);
                 err = object_manager_save(o, val);
                 if (err) {
+                    LATTE_LIB_LOG(LOG_ERROR, "save_command: failed to save object");
                     error_delete(err);
                     protected_dict_iterator_delete(it);
                     odb_oio_free(o);
@@ -348,7 +414,11 @@ void load_command(redis_client_t* c) {
         return;
     }
     if (c->argc == 2) {
-        filename = c->argv[1]->ptr;
+        if (!sds_encoded_object(c->argv[1])) {
+            add_reply_error(c, "ERR Invalid filename");
+            return;
+        }
+        filename = (const char*)c->argv[1]->ptr;
     }
     
     FILE* fp = fopen(filename, "rb");
