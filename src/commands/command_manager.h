@@ -105,5 +105,8 @@ void ping_command(redis_client_t* c);
 void quit_command(redis_client_t* c);
 void module_command(redis_client_t* c);
 void info_command(redis_client_t* c);
+void expire_command(redis_client_t* c);
+void save_command(redis_client_t* c);
+void load_command(redis_client_t* c);
 
 #endif

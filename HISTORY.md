@@ -80,6 +80,104 @@
   - 允许访问 kv_store 中的单个字典
 - **相关**: SAVE/LOAD 实现
 
+## 2026-03-04 - [Refactor] 命令模块化分离
+
+- **文件**: 
+  - `src/commands/command_manager.c`
+  - `src/commands/command_manager.h`
+  - `src/commands/expire.c` (新建)
+  - `src/commands/ping.c` (新建)
+  - `src/commands/quit.c` (新建)
+  - `src/commands/save.c` (新建)
+  - `src/Makefile`
+- **详情**: 
+  - 将命令实现从 `command_manager.c` 中分离到独立文件，实现模块化
+  - 创建的新文件：
+    - `expire.c` - 包含 `expire_command` 实现
+    - `ping.c` - 包含 `ping_command` 实现
+    - `quit.c` - 包含 `quit_command` 实现
+    - `save.c` - 包含 `save_command` 和 `load_command` 实现
+  - `command_manager.c` 现在只包含：
+    - 命令管理逻辑（注册、查找等）
+    - 命令表定义
+    - 前向声明
+  - 移除了 `command_manager.c` 中不必要的 include（odb、object_manager 等）
+  - 更新了 `command_manager.h`，添加了新命令的声明
+  - 更新了 `Makefile`，将新的命令文件添加到编译列表
+  - 优势：
+    - 提高代码可维护性，每个命令独立文件
+    - 便于扩展，新增命令只需添加新文件
+    - 代码组织更清晰，命令管理逻辑与实现分离
+- **相关**: 代码重构和模块化
+
+## 2026-03-03 - [Test] 添加 SAVE 和 LOAD 命令测试
+
+- **文件**: 
+  - `tests/commands/save.tcl`
+  - `tests/test_main.tcl`
+- **详情**: 
+  - 为 SAVE 命令添加了完整的测试套件
+  - 为 LOAD 命令添加了完整的测试套件
+  - 测试覆盖以下场景：
+    - 保存数据到默认的 dump.ldb 文件
+    - 保存数据到自定义文件名
+    - 从 dump.ldb 文件加载数据
+    - 从自定义文件名加载数据
+    - 保存/加载过程中过期时间的保留
+    - 加载操作前的数据清空
+  - 在 `test_main.tcl` 中将 `commands/save` 添加到测试套件
+- **相关**: SAVE/LOAD 功能实现
+
+## 2026-03-04 - [Test] 改进测试服务器启动功能，添加日志和输出文件管理
+
+- **文件**: 
+  - `tests/support/server.tcl`
+- **详情**: 
+  - 为每个测试服务器实例创建独立的工作目录
+    - 目录格式：`tests/tmp/server_[pid]_[timestamp]`
+    - 每个服务器实例拥有独立的输出和日志目录
+  - 重定向服务器输出到文件
+    - `stdout.log` - 标准输出
+    - `stderr.log` - 标准错误输出
+    - 使用 Tcl 的 `exec` 重定向语法实现
+  - 配置服务器日志文件
+    - `server.log` - 服务器日志文件
+    - 通过 `--log-file` 参数传递给服务器
+    - 设置日志级别为 `debug`，便于调试
+  - 修改的函数：
+    - `start_latte_redis_server` - 基础服务器启动函数
+    - `start_latte_redis_server_with_modules` - 带模块的服务器启动函数
+    - `start_latte_redis_server_with_modules_no_ping` - 无 ping 的服务器启动函数
+  - 返回的 dict 新增字段：
+    - `stdout_file` - stdout 文件路径
+    - `stderr_file` - stderr 文件路径
+    - `log_file` - 日志文件路径
+    - `workdir` - 工作目录路径
+  - 保留日志文件供调试
+    - `kill_latte_server` 不再删除工作目录，保留所有日志文件
+- **相关**: 测试调试和问题排查
+
+## 2026-03-04 - [Refactor] 合并测试服务器启动函数
+
+- **文件**: 
+  - `tests/support/server.tcl`
+- **详情**: 
+  - 将三个独立的服务器启动函数合并为一个统一的 `start_latte_redis_server` 函数
+  - 统一的函数支持以下参数：
+    - `overrides` - 端口等覆盖参数
+    - `module_paths` - 模块路径列表，空列表表示不加载模块
+    - `use_ping` - 是否使用 ping 检测服务器就绪，默认 true
+    - `wait_after_ping` - ping 检测后等待时间（毫秒），默认 400
+    - `wait_ms` - 不使用 ping 时直接等待的时间（毫秒），默认 1500
+  - 保留旧函数作为兼容性包装器：
+    - `start_latte_redis_server_with_modules` - 调用统一函数，传递模块路径，使用 ping 检测
+    - `start_latte_redis_server_with_modules_no_ping` - 调用统一函数，传递模块路径，不使用 ping
+  - 优势：
+    - 减少代码重复，从 271 行减少到 220 行
+    - 统一管理服务器启动逻辑
+    - 保持向后兼容，所有现有测试无需修改
+- **相关**: 测试基础设施改进
+
 ---
 
 ## 新条目模板

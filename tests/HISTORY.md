@@ -52,6 +52,34 @@
     - 自定义文件名支持
 - **相关**: 持久化功能测试
 
+## 2026-03-04 - [Infrastructure] 改进测试服务器启动功能，添加日志和输出文件管理
+
+- **文件**: 
+  - `tests/support/server.tcl`
+- **详情**: 
+  - 为每个测试服务器实例创建独立的工作目录
+    - 目录格式：`tests/tmp/server_[pid]_[timestamp]`
+    - 每个服务器实例拥有独立的输出和日志目录
+  - 重定向服务器输出到文件
+    - `stdout.log` - 标准输出
+    - `stderr.log` - 标准错误输出
+    - 使用 Tcl 的 `exec` 重定向语法实现
+  - 配置服务器日志文件
+    - `server.log` - 服务器日志文件
+    - 通过 `--log-file` 参数传递给服务器
+  - 修改的函数：
+    - `start_latte_redis_server` - 基础服务器启动函数
+    - `start_latte_redis_server_with_modules` - 带模块的服务器启动函数
+    - `start_latte_redis_server_with_modules_no_ping` - 无 ping 的服务器启动函数
+  - 返回的 dict 新增字段：
+    - `stdout_file` - stdout 文件路径
+    - `stderr_file` - stderr 文件路径
+    - `log_file` - 日志文件路径
+    - `workdir` - 工作目录路径
+  - 保留日志文件供调试
+    - `kill_latte_server` 不再删除工作目录，保留所有日志文件
+- **相关**: 测试调试和问题排查
+
 ---
 
 ## 新条目模板
