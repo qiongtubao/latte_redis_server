@@ -97,6 +97,7 @@ server_config_t* server_config_new(config_manager_t* config_manager) {
     server_config_t* config = zmalloc(sizeof(server_config_t));
     config->bind = NULL;
     config->logfile = NULL;
+    config->ldb_file = NULL;
     config->load_modules = NULL;
     config->port = DEFAULT_PORT;
     config->tcp_backlog = DEFAULT_TCP_BACKLOG;
@@ -113,6 +114,7 @@ server_config_t* server_config_new(config_manager_t* config_manager) {
     config_add_rule(config_manager, "port", config_rule_new_numeric_rule(0, &config->port, 0, 65535, NULL, DEFAULT_PORT));
     config_add_rule(config_manager, "tcp-backlog", config_rule_new_numeric_rule(0, &config->tcp_backlog, 0, 65535, NULL, DEFAULT_TCP_BACKLOG));
     config_add_rule(config_manager, "log-file", config_rule_new_sds_rule(0, &config->logfile, NULL, NULL));
+    config_add_rule(config_manager, "ldb-file", config_rule_new_sds_rule(0, &config->ldb_file, NULL, sds_new("dump.ldb")));
     config_add_rule(config_manager, "log-level", config_rule_new_enum_rule(0, &config->log_level, log_level_enum_list, NULL, "info"));    
     config_add_rule(config_manager, "max-clients", config_rule_new_numeric_rule(0, &config->max_clients, 0, 65535, NULL, 10000));
     config_add_rule(config_manager, "use-async-io", config_rule_new_numeric_rule(0, &config->use_async_io, 0, 1, NULL, false));
@@ -138,7 +140,7 @@ server_config_t* server_config_new(config_manager_t* config_manager) {
         config_rule_new_numeric_rule(0, &config->slowlog_log_slower_than, 0, INT64_MAX, NULL, 10000));
     config_add_rule(config_manager, "slowlog-max-len", 
         config_rule_new_numeric_rule(0, &config->slowlog_max_len, 0, INT64_MAX, NULL, 128));
-    latte_assert_with_info(config_init_all_data(config_manager) == 13, "config_init_all_data failed");
+    latte_assert_with_info(config_init_all_data(config_manager) == 14, "config_init_all_data failed");
     return config;
 }
 

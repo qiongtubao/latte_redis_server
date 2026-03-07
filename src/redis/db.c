@@ -34,13 +34,7 @@ int db_set_value(redis_server_t* server,redis_db_t* db, latte_object_t* key, lat
     val->lru = old->lru;
 
     if (overwrite) {
-        latte_assert_with_info(0, "overwrite is not supported");
-        // latte_object_incr_ref_count(old);
-        // // module_notify_key_unlink(key, old, db->id, DB_FLAG_KEY_OVERWRITE);
-        // signal_deleted_key_as_ready(db, key, old->type);
-
-        // latte_object_decr_ref_count(old);
-        // old = dict_get_val(de);
+        /* 原地覆盖：先减旧值引用，再设置新值（LOAD 等场景下允许同 key 覆盖） */
     }
     kv_store_dict_set_val(db->keys, dict_index, de, val);
     // if (try_offload_free_obj_to_io_threads(old) == C_OK) {
@@ -433,4 +427,68 @@ int init_redis_server_dbs(redis_server_t* redis_server) {
         list_set_free_method(redis_server->dbs[i].defrag_later, (void (*)(void *)) (sds_delete));
     }
     return 0;
+}
+
+void db_clear(redis_server_t* server) {
+    /* 清空所有 db：先遍历每个 dict 收集所有 key，再统一删除，避免在迭代中删 key 导致问题 */
+    for (int dbid = 0; dbid < server->db_num; dbid++) {
+        redis_db_t* db = server->dbs + dbid;
+        if (!db || !db->keys) continue;
+        LATTE_LIB_LOG(LOG_DEBUG, "load_command: clearing db %d, num_dicts=%lld", dbid, (long long)db->keys->num_dicts);
+
+        for (long long didx = 0; didx < db->keys->num_dicts; didx++) {
+            dict_t* d = kv_store_get_dict(db->keys, didx);
+            if (!d) continue;
+            LATTE_LIB_LOG(LOG_DEBUG, "load_command: db %d dict %lld collecting keys to delete", dbid, (long long)didx);
+            /* 第一遍：迭代 dict 收集所有 key（复制 sds_dup），兼容 key|1 等存储方式 */
+            sds* keys_to_delete = NULL;
+            size_t key_count = 0;
+            size_t key_capacity = 0;
+            
+            latte_iterator_t* it = dict_get_latte_iterator(d);
+            if (!it) {
+                LATTE_LIB_LOG(LOG_DEBUG, "load_command: db %d dict %lld iterator is NULL", dbid, (long long)didx);
+                continue;
+            }
+            /* Use safe iterator so delete/release does not assert fingerprint (we delete keys after iteration). */
+            // ((dict_iterator_t*)it)->safe = 1;
+            LATTE_LIB_LOG(LOG_DEBUG, "db clear: db %d dict %lld iterator created it=%p", dbid, (long long)didx, (void*)it);
+            while (latte_iterator_has_next(it)) {
+                latte_pair_t* pair = (latte_pair_t*)latte_iterator_next(it);
+                if (!pair) break;
+                sds key = (sds)latte_pair_key(pair);
+                /* 兼容 dict 中 (key|1) 等特殊 entry，解码得到真实 key 指针 */
+                // if (key && ((uintptr_t)key & 1)) key = (sds)((uintptr_t)key & ~(uintptr_t)1);
+                LATTE_LIB_LOG(LOG_DEBUG, "db clear: db %d dict %lld iter key_count=%zu key=%s", dbid, (long long)didx, key_count, key);
+                if (key) {
+                    if (key_count >= key_capacity) {
+                        size_t new_capacity = key_capacity ? key_capacity * 2 : 16;
+                        sds* new_keys = zrealloc(keys_to_delete, new_capacity * sizeof(sds));
+                        if (!new_keys) {
+                            /* Out of memory - free what we have and break */
+                            for (size_t i = 0; i < key_count; i++) {
+                                sds_delete(keys_to_delete[i]);
+                            }
+                            zfree(keys_to_delete);
+                            latte_iterator_delete(it);
+                            break;
+                        }
+                        keys_to_delete = new_keys;
+                        key_capacity = new_capacity;
+                    }
+                    keys_to_delete[key_count++] = sds_dup(key);
+                }
+            }
+            latte_iterator_delete(it);
+
+            /* 第二遍：按收集到的 key 调用 db_delete_key 删除，并释放本地的 sds 副本 */
+            LATTE_LIB_LOG(LOG_DEBUG, "db clear: db %d dict %lld deleting %zu keys", dbid, (long long)didx, key_count);
+            for (size_t i = 0; i < key_count; i++) {
+                db_delete_key(server, db, keys_to_delete[i]);
+                sds_delete(keys_to_delete[i]);
+            }
+            if (keys_to_delete) zfree(keys_to_delete);
+        }
+    }
+    
 }

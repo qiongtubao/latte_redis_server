@@ -141,12 +141,13 @@ proc start_latte_redis_server {{overrides {}} {module_paths {}} {use_ping 1} {wa
     set stderr_file [file join $workdir "stderr.log"]
     set log_file [file join $workdir "server.log"]
     
-    # 构建命令，添加日志文件参数和 DEBUG 日志级别
+    # 构建命令，添加日志文件参数、ldb 路径和 DEBUG 日志级别（使用绝对路径保证 ldb 一定在 workdir 下）
+    set ldb_file [file normalize [file join $workdir "dump.ldb"]]
     set cmd [list $::latte_server_path]
     if {$config_file ne ""} {
         lappend cmd $config_file
     }
-    lappend cmd --port $port --log-file $log_file --log-level debug
+    lappend cmd --port $port --log-file $log_file --ldb-file $ldb_file --log-level debug
     
     # 启动服务器并重定向输出
     set res [exec {*}$cmd > $stdout_file 2> $stderr_file &]

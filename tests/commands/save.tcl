@@ -19,8 +19,8 @@ test "SAVE saves data to dump.ldb" {
     set reply [$r save]
     assert {$reply eq "OK"}
 
-    # 检查文件是否存在
-    set dump_file "dump.ldb"
+    # 检查文件是否在 server workdir 下存在
+    set dump_file [file join [dict get $srv workdir] "dump.ldb"]
     assert {[file exists $dump_file]}
 
     $r close
@@ -41,8 +41,8 @@ test "SAVE with custom filename" {
     # 设置一些数据
     $r set key1 value1
 
-    # 保存到自定义文件
-    set custom_file "test_save.ldb"
+    # 保存到 workdir 下的自定义文件
+    set custom_file [file join [dict get $srv workdir] "test_save.ldb"]
     set reply [$r save $custom_file]
     assert {$reply eq "OK"}
 
@@ -69,7 +69,7 @@ test "LOAD loads data from dump.ldb" {
     $r set key2 value2
     $r set key3 value3
 
-    # 保存数据
+    # 保存数据（写入 server workdir/dump.ldb）
     set reply [$r save]
     assert {$reply eq "OK"}
 
@@ -81,9 +81,10 @@ test "LOAD loads data from dump.ldb" {
     assert {[$r get key1] eq "modified1"}
     assert {[$r get key4] eq "value4"}
 
-    # 加载数据（应该清空现有数据并恢复保存的数据）
+    # 加载数据（从 config ldb-file 即 workdir/dump.ldb）
     set reply [$r load]
     assert {$reply eq "OK"}
+    
 
     # 验证数据已恢复
     assert {[$r get key1] eq "value1"}
@@ -95,8 +96,7 @@ test "LOAD loads data from dump.ldb" {
     $r close
     kill_latte_server $srv
 
-    # 清理测试文件
-    set dump_file "dump.ldb"
+    set dump_file [file join [dict get $srv workdir] "dump.ldb"]
     if {[file exists $dump_file]} {
         file delete $dump_file
     }
@@ -112,8 +112,8 @@ test "LOAD with custom filename" {
     $r set key1 value1
     $r set key2 value2
 
-    # 保存到自定义文件
-    set custom_file "test_load.ldb"
+    # 保存到 workdir 下的自定义文件
+    set custom_file [file join [dict get $srv workdir] "test_load.ldb"]
     set reply [$r save $custom_file]
     assert {$reply eq "OK"}
 
@@ -131,7 +131,6 @@ test "LOAD with custom filename" {
     $r close
     kill_latte_server $srv
 
-    # 清理测试文件
     if {[file exists $custom_file]} {
         file delete $custom_file
     }
@@ -172,8 +171,7 @@ test "SAVE and LOAD preserve expiration times" {
     $r close
     kill_latte_server $srv
 
-    # 清理测试文件
-    set dump_file "dump.ldb"
+    set dump_file [file join [dict get $srv workdir] "dump.ldb"]
     if {[file exists $dump_file]} {
         file delete $dump_file
     }
@@ -214,8 +212,7 @@ test "LOAD clears existing data before loading" {
     $r close
     kill_latte_server $srv
 
-    # 清理测试文件
-    set dump_file "dump.ldb"
+    set dump_file [file join [dict get $srv workdir] "dump.ldb"]
     if {[file exists $dump_file]} {
         file delete $dump_file
     }

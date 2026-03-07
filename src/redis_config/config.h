@@ -22,6 +22,7 @@ typedef struct server_config_t {
     vector_t* bind;
     long long tcp_backlog;
     sds logfile;
+    sds ldb_file;  /* path for dump.ldb (SAVE/LOAD default file) */
     log_level_enum log_level;
     long long max_clients;
     bool use_async_io;

@@ -51,7 +51,10 @@ int process_command(redis_client_t* rc) {
     if (rc->cmd == NULL) {
         LATTE_LIB_LOG(LOG_ERROR, "command not found: %s", rc->argv[0]->ptr);
         return -1;
-    } 
+    }
+    if (rc->cmd->name && strcmp(rc->cmd->name, "load") == 0) {
+        LATTE_LIB_LOG(LOG_INFO, "process_command: about to call load_command");
+    }
     call(rc, CMD_CALL_FULL);
     return 0;
 }
@@ -335,8 +338,8 @@ int process_multibulk_buffer(redis_client_t* rc) {
                 rc->client.querybuf = sds_new_len(SDS_NOINIT,rc->bulk_len+2);
                 sds_clear(rc->client.querybuf);
             } else {
-                sds s = sds_new_len(rc->client.querybuf+rc->client.qb_pos, rc->bulk_len);
-                rc->argv[rc->argc++] = latte_object_string_new( s);
+                rc->argv[rc->argc++] =
+                    latte_object_string_new(sds_new_len(rc->client.querybuf+rc->client.qb_pos,rc->bulk_len));
                 rc->argv_len_sum += rc->bulk_len;
                 rc->client.qb_pos += rc->bulk_len+2;
             }

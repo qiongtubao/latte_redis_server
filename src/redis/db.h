@@ -50,6 +50,7 @@ dict_entry_t* kv_store_dict_add_raw(kv_store_t* kvs, int didx, void *key, dict_e
 int kv_store_dict_set_val(kv_store_t* kvs, int didx, dict_entry_t* de, void* val);
 int kv_store_dict_set_key(kv_store_t* kvs, int didx, dict_entry_t* de, void* key);
 dict_entry_t* kv_store_dict_find(kv_store_t* kvs, int didx, void* key);
+int kv_store_dict_delete_key(kv_store_t* kvs, int didx, const void* key);
 
 typedef struct redis_db_t {
     kv_store_t *keys;
@@ -73,7 +74,7 @@ int db_set_expire(struct redis_server_t* server, redis_db_t* db, sds key, long l
 void db_remove_expire(redis_db_t* db, sds key);
 int expire_if_needed(struct redis_server_t* server, redis_db_t* db, sds key);
 void db_delete_key(struct redis_server_t* server, redis_db_t* db, sds key);
+void db_clear(struct redis_server_t* server);
 
-int kv_store_dict_delete_key(kv_store_t* kvs, int didx, const void* key);
 
 #endif
