@@ -2,6 +2,7 @@
  * SAVE / LOAD 命令实现：将当前数据库持久化到 ldb 文件，或从 ldb 文件恢复。
  *
  * LDB 文件格式（与 odb/object_manager 配合）：
+ *   0. 版本字符串（odb 格式：4 字节长度 + 内容，LOAD 时校验兼容性）
  *   1. 对象类型注册表（object_manager_save_registry / load_registry）
  *   2. 按数据库顺序写入：
  *      - 0xFF + u32 dbid  (SELECTDB，仅当该库有 key 时写入)
@@ -11,6 +12,7 @@
  *        - value 对象（object_manager_save / load）
  *   3. 0xFD (EOF)
  */
+#define LDB_VERSION_STR "0.0.1"
 #include "command_manager.h"
 #include "../shared/shared.h"
 #include "../redis/db.h"
@@ -23,6 +25,24 @@
 #include "../../deps/latte_c/src/iterator/iterator.h"
 #include "../../deps/latte_c/src/error/error.h"
 #include <stdio.h>
+#include <string.h>
+#include <limits.h>
+
+/*
+ * ldb_version_compare - 比较语义化版本字符串 "X.Y.Z"
+ * 返回: <0 表示 a < b，0 表示 a == b，>0 表示 a > b；解析失败返回 INT_MIN
+ */
+static int ldb_version_compare(const char* a, const char* b) {
+    int ma = 0, mi = 0, pa = 0;
+    int mb = 0, mib = 0, pb = 0;
+    if (!a || !b) return INT_MIN;
+    if (sscanf(a, "%d.%d.%d", &ma, &mi, &pa) != 3) return INT_MIN;
+    if (sscanf(b, "%d.%d.%d", &mb, &mib, &pb) != 3) return INT_MIN;
+    if (ma != mb) return ma < mb ? -1 : 1;
+    if (mi != mib) return mi < mib ? -1 : 1;
+    if (pa != pb) return pa < pb ? -1 : 1;
+    return 0;
+}
 
 /*
  * save_command - 将当前服务器所有数据库持久化到 ldb 文件
@@ -82,7 +102,15 @@ void save_command(redis_client_t* c) {
         add_reply_error(c, "ERR Failed to create oio");
         return;
     }
-    //TODO 增加版本
+
+    /* 写入 LDB 版本字符串（odb 格式：长度 + 内容），LOAD 时用于校验 */
+    if (odb_write_string(o, LDB_VERSION_STR, strlen(LDB_VERSION_STR)) == 0) {
+        LATTE_LIB_LOG(LOG_ERROR, "save_command: failed to write LDB version");
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to write LDB version");
+        return;
+    }
 
     /* 先写入对象类型注册表：type_name -> type_id 映射，load 时用 id_map 还原 */
     LATTE_LIB_LOG(LOG_DEBUG, "save_command: saving registry");
@@ -189,8 +217,7 @@ void save_command(redis_client_t* c) {
                 }
                 LATTE_LIB_LOG(LOG_DEBUG, "save_command: db %d dict %lld got pair, getting key and value", dbid, didx);
                 sds key = (sds)latte_pair_key(pair);
-                /* Dict may store key-only entries as (key|1); decode to get real key pointer. */
-                // if (key && ((uintptr_t)key & 1)) key = (sds)((uintptr_t)key & ~(uintptr_t)1);
+
                 latte_object_t* val = (latte_object_t*)latte_pair_value(pair);
                 
                 LATTE_LIB_LOG(LOG_DEBUG, "save_command: db %d dict %lld key=%s val=%p", dbid, didx, key, val);
@@ -332,7 +359,36 @@ void load_command(redis_client_t* c) {
         add_reply_error(c, "ERR Failed to create oio");
         return;
     }
-    //TODO 版本检查
+
+    /* 读取并校验 LDB 版本字符串（兼容低版本：仅拒绝比当前新的版本） */
+    sds file_version = odb_read_string(o);
+    if (!file_version) {
+        LATTE_LIB_LOG(LOG_ERROR, "load_command: failed to read LDB version");
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error(c, "ERR Failed to read LDB version");
+        return;
+    }
+    int cmp = ldb_version_compare((const char*)file_version, LDB_VERSION_STR);
+    if (cmp == INT_MIN) {
+        LATTE_LIB_LOG(LOG_ERROR, "load_command: invalid LDB version string '%s'", (const char*)file_version);
+        sds_delete(file_version);
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error_format(c, "ERR Invalid LDB version string '%s' (expected X.Y.Z)", (const char*)file_version);
+        return;
+    }
+    if (cmp > 0) {
+        LATTE_LIB_LOG(LOG_ERROR, "load_command: LDB file version '%s' is newer than current '%s'", (const char*)file_version, LDB_VERSION_STR);
+        sds_delete(file_version);
+        odb_oio_free(o);
+        fclose(fp);
+        add_reply_error_format(c, "ERR LDB file version '%s' is newer than current '%s', cannot load", (const char*)file_version, LDB_VERSION_STR);
+        return;
+    }
+    sds_delete(file_version);
+    LATTE_LIB_LOG(LOG_DEBUG, "load_command: LDB version compatible (file <= %s)", LDB_VERSION_STR);
+
     /* 加载对象类型注册表，得到文件内 type_id -> 当前 type_id 的 id_map，供后续 object_manager_load 使用 */
     LATTE_LIB_LOG(LOG_DEBUG, "load_command: loading object registry");
     uint8_t id_map[256];

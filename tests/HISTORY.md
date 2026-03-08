@@ -80,6 +80,15 @@
     - `kill_latte_server` 不再删除工作目录，保留所有日志文件
 - **相关**: 测试调试和问题排查
 
+## 2026-03-07 - [Infrastructure] make test 前清空 tests/tmp
+
+- **文件**: 
+  - `Makefile`
+- **详情**: 
+  - `make test` 执行前先删除 `tests/tmp` 并重建空目录（`-rm -rf tests/tmp && mkdir -p tests/tmp`），再运行 `./runtest`
+  - 确保每次测试在干净的临时目录下运行，避免旧服务器工作目录、dump.ldb、server.log 等残留影响 SAVE/LOAD 等测试结果
+- **相关**: 测试可重复性、SAVE/LOAD 测试
+
 ---
 
 ## 新条目模板
