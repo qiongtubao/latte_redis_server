@@ -24,9 +24,29 @@ int get_client_type(redis_client_t *c) {
 }
 
 void call(redis_client_t* rc, int flags) {
-
     rc->cmd->proc(rc);
-    
+
+    /* 命令执行后将数据写入 server backlog（命令名 + 参数，空格分隔） */
+    redis_server_t* server = (redis_server_t*)rc->client.server;
+    if (server && server->backlog && rc->cmd && rc->cmd->name) {
+        sds entry = sds_empty();
+        if (entry) {
+            const char* name = rc->cmd->name;
+            entry = sds_cat_len(entry, name, strlen(name));
+            for (int j = 1; entry && j < rc->argc; j++) {
+                entry = sds_cat_len(entry, " ", 1);
+                if (entry && rc->argv[j] && rc->argv[j]->ptr) {
+                    size_t len = string_object_len(rc->argv[j]);
+                    if (len > 0)
+                        entry = sds_cat_len(entry, rc->argv[j]->ptr, len);
+                }
+            }
+            if (entry)
+                backlog_add(server->backlog, entry);
+            else
+                sds_delete(entry);
+        }
+    }
 }
 
 int process_command(redis_client_t* rc) {

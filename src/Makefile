@@ -64,7 +64,7 @@ $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a:
 	$(REDIS_CC) $(DEBUG) -MMD -o $@ -c $< -I$(LATTE_LIB_WORKSPACE)/out/include 
 
 MAC_M1_CFLAGS=-fprofile-arcs -ftest-coverage
-REDIS_OBJS=redis/server.o redis/crons.o redis/client.o redis/client_reply.o redis/module.o redis/db.o redis/slowlog.o redis/object_string_register.o
+REDIS_OBJS=redis/server.o redis/backlog.o redis/crons.o redis/client.o redis/client_reply.o redis/module.o redis/db.o redis/slowlog.o redis/object_string_register.o
 COMMANDS_OBJS=commands/command_manager.o commands/module.o commands/info.o commands/expire.o commands/ping.o commands/quit.o commands/save.o
 EXPERIMENT_OBJS=experiment/metric.o
 OBJECT_OBJS=object/string.o

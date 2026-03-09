@@ -7,6 +7,7 @@
 #include "dict/dict.h"
 #include "command.h"
 #include "db.h"
+#include "backlog.h"
 #include "slowlog.h"
 #include "../experiment/metric.h"
 
@@ -29,6 +30,8 @@ typedef struct redis_server_t {
     command_manager_t* command_manager;
     dict_t* robj_register;
     list_t* clients_to_close;
+    /** 命令执行后写入的 backlog（含长度限制与总长度统计） */
+    backlog_t* backlog;
     time_t unixtime;
     int hz;
     struct redis_client_t* current_client;

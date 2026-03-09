@@ -92,6 +92,8 @@ dict_func_t modules_dict_type = {
 void init_redis_server(struct redis_server_t* rs) {
     rs->proto_max_bulk_len = 1024 * 1024;
     rs->clients_to_close = list_new();
+    /* backlog: 最多 10000 条，总长不限制；可按需改为从 config 读取 */
+    rs->backlog = backlog_new(10000, 0);
     rs->command_manager = command_manager_new();
     rs->modules = dict_new(&modules_dict_type);
     rs->metric = metric_new(16);
