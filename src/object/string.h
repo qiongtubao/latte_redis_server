@@ -13,13 +13,25 @@
 /* 临时定义：假设 "string" 是第一个注册的类型，type_id 为 0 */
 #define OBJ_STRING 0
 
-/* 对于新的 object_manager 系统，所有字符串对象都是 sds 编码 */
+/**
+ * 检查对象是否为 sds 编码的字符串
+ * 输入: obj - latte对象指针
+ * 返回: 1-是sds编码字符串, 0-不是
+ */
 int sds_encoded_object(latte_object_t* obj);
 
-/* 使用 object_manager 创建字符串对象 */
+/**
+ * 用 object_manager 创建字符串对象
+ * 输入: s - sds字符串
+ * 返回: 创建的latte对象指针，失败返回NULL
+ */
 latte_object_t* latte_object_string_new(sds s);
 
-/* 获取字符串对象的长度 */
+/**
+ * 获取字符串对象长度（通过类型名检查）
+ * 输入: obj - latte对象指针
+ * 返回: 字符串长度，失败返回0
+ */
 static inline size_t string_object_len(latte_object_t *obj) {
     if (!obj || !obj->ptr) return 0;
     /* 在新的 object_manager 系统中，type 是 type_id，需要通过类型名检查 */
@@ -30,7 +42,11 @@ static inline size_t string_object_len(latte_object_t *obj) {
     return 0;
 }
 
-/* 从对象获取 sds 指针 */
+/**
+ * 从对象获取 sds 指针（类型安全）
+ * 输入: obj - latte对象指针, out - 输出sds指针的地址
+ * 返回: 0-成功, -1-失败
+ */
 static inline int get_sds_from_object(latte_object_t *obj, sds *out) {
     if (!obj || !out) return -1;
     /* 在新的 object_manager 系统中，type 是 type_id，需要通过类型名检查 */

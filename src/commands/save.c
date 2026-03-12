@@ -12,7 +12,7 @@
  *        - value 对象（object_manager_save / load）
  *   3. 0xFD (EOF)
  */
-#define LDB_VERSION_STR "0.0.1"
+#define LDB_VERSION_STR "0.0.1"  /* LDB文件格式版本号：用于版本兼容性检查 */
 #include "command_manager.h"
 #include "../shared/shared.h"
 #include "../redis/db.h"
@@ -185,7 +185,8 @@ void save_command(redis_client_t* c) {
             add_reply_error(c, "ERR Failed to save database id");
             return;
         }
-        /* 添加db个数*/
+        /* 添加数据库键数量：在SELECTDB后写入该数据库的总键数量，
+         * 用于LOAD时的进度估计和完整性校验 */
         odb_write_u64(o, db->keys->key_count);
 
         LATTE_LIB_LOG(LOG_DEBUG, "save_command: iterating dicts in db %d", dbid);
@@ -276,9 +277,12 @@ void save_command(redis_client_t* c) {
             latte_iterator_delete(it);
         }
     }
-    //TODO 增加crc检验
+
+    /* TODO: 增加CRC校验码写入，提高数据完整性保护
+     * 建议在EOF标记前写入整个文件的CRC32/CRC64校验码 */
     LATTE_LIB_LOG(LOG_DEBUG, "save_command: total keys saved=%lld", total_keys);
-    /* 写入文件结束标记 0xFD，load 时读到即结束 */
+
+    /* 写入文件结束标记 0xFD，LOAD时读到此标记表示文件结束 */
     if (odb_write_u8(o, 0xFD) == 0) {
         odb_oio_free(o);
         fclose(fp);
@@ -286,19 +290,23 @@ void save_command(redis_client_t* c) {
         return;
     }
     LATTE_LIB_LOG(LOG_DEBUG, "save_command: writing EOF marker");
-    /* 刷盘并释放 oio、关闭文件 */
+
+    /* 强制刷新缓冲区到磁盘，确保数据完整写入 */
     if (o->flush(o) == 0) {
         odb_oio_free(o);
         fclose(fp);
         add_reply_error(c, "ERR Failed to flush file");
         return;
     }
-    LATTE_LIB_LOG(LOG_DEBUG, "save_command: freeing oio");
+    LATTE_LIB_LOG(LOG_DEBUG, "save_command: freeing oio ptr=%p", (void*)o);
     odb_oio_free(o);
-    LATTE_LIB_LOG(LOG_DEBUG, "save_command: closing file");
+    o = NULL;
+    LATTE_LIB_LOG(LOG_DEBUG, "save_command: oio freed ok, closing file fp=%p", (void*)fp);
     fclose(fp);
-    LATTE_LIB_LOG(LOG_DEBUG, "save_command: adding reply ok");
+    fp = NULL;
+    LATTE_LIB_LOG(LOG_DEBUG, "save_command: file closed ok, adding reply ok");
     add_reply(c, shared.ok);
+    LATTE_LIB_LOG(LOG_DEBUG, "save_command: reply added ok");
 }
 
 /*
@@ -403,10 +411,12 @@ void load_command(redis_client_t* c) {
     }
     LATTE_LIB_LOG(LOG_DEBUG, "load_command: registry loaded, clearing existing data, db_num=%d", server->db_num);
 
+    /* 清空当前服务器的所有数据库，为加载新数据做准备
+     * db_clear函数会安全地删除所有键值对和过期时间信息 */
     db_clear(server);
-    int current_db = 0;
-    long long total_keys = 0;
-    uint64_t db_key_count;
+    int current_db = 0;          /* 当前操作的数据库ID */
+    long long total_keys = 0;    /* 已加载的键总数统计 */
+    uint64_t db_key_count;      /* 当前数据库预期的键数量 */
     LATTE_LIB_LOG(LOG_DEBUG, "load_command: clear done, starting load loop");
 
     /* 按 SAVE 格式循环读：opcode 决定 SELECTDB / EXPIRETIME_MS / key+value / EOF */
@@ -531,7 +541,8 @@ void load_command(redis_client_t* c) {
             add_reply_error(c, "ERR Invalid database");
             return;
         }
-        
+
+        /* 创建键对象：将sds字符串包装为latte_object_t，用于统一的对象管理 */
         latte_object_t* key_obj = latte_object_string_new( key);
         if (!key_obj) {
             sds_delete(key);
@@ -541,11 +552,12 @@ void load_command(redis_client_t* c) {
             add_reply_error(c, "ERR Failed to create key object");
             return;
         }
-        
+
         LATTE_LIB_LOG(LOG_DEBUG, "load_command: adding key to db %d", current_db);
+        /* 将键值对添加到数据库中，函数内部会处理引用计数和内存管理 */
         int ret = db_add_key_value(server, db, key_obj, val);
-        latte_object_decr_ref_count(key_obj);
-        
+        latte_object_decr_ref_count(key_obj);  /* 释放临时的键对象引用 */
+
         if (ret != 0) {
             LATTE_LIB_LOG(LOG_ERROR, "load_command: db_add_key_value failed ret=%d", ret);
             sds_delete(key);
@@ -555,20 +567,26 @@ void load_command(redis_client_t* c) {
             add_reply_error(c, "ERR Failed to add key-value to database");
             return;
         }
-        /* 若本条在文件中带有过期时间，则在 db 中查存储的 key 并设置 expire */
+
+        /* 若本条在文件中带有过期时间，则在 db 中设置相应的过期信息 */
         if (expire > 0) {
+            /* 根据key计算分片索引，然后在对应dict中查找已存储的键 */
             int didx = get_kv_store_index_for_key(key);
             dict_entry_t* de = kv_store_dict_find(db->keys, didx, key);
             if (de) {
+                /* 获取存储在字典中的实际键（可能与传入的key在内存地址上不同） */
                 sds stored_key = (sds)dict_get_entry_key(de);
                 if (stored_key) {
                     if (db_set_expire(server, db, stored_key, expire) != 0) {
-                        /* 设置过期失败不中断整次 load，仅跳过该 key 的 expire */
+                        /* 设置过期失败不中断整次 load，仅跳过该 key 的 expire
+                         * 这样可以保证数据加载的鲁棒性 */
                     }
                 }
             }
         }
-        /* key 已交给 key_obj（latte_object_string_new 取得所有权），勿再 sds_delete(key) */
+
+        /* 注意：key的内存所有权已转移给key_obj（latte_object_string_new），
+         * 所以这里不再需要 sds_delete(key) */
         total_keys++;
     }
     

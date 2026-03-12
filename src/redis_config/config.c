@@ -4,8 +4,8 @@
 #include "utils/utils.h"
 #include "../redis/module.h"
 
-#define DEFAULT_PORT 6379
-#define DEFAULT_TCP_BACKLOG 512
+#define DEFAULT_PORT 6379           /* 默认服务器监听端口 */
+#define DEFAULT_TCP_BACKLOG 512     /* 默认 TCP 连接队列长度 */
 // config_rule_t port_rule = LL_CONFIG_INIT(DEFAULT_PORT);
 // config_rule_t bind_rule = SDS_ARRAY_CONFIG_INIT("* -::*");
 // config_rule_t tcp_backlog_rule = LL_CONFIG_INIT(DEFAULT_TCP_BACKLOG);
@@ -19,6 +19,7 @@
 
 // config_rule_t load_module_rule = EVENT_CONFIG_INIT();
 
+/* 日志级别枚举映射表，用于配置文件字符串与枚举值的转换 */
 config_enum_t log_level_enum_list[] = {
     { "trace", LOG_TRACE},
     { "debug", LOG_DEBUG},
@@ -33,38 +34,65 @@ config_enum_t log_level_enum_list[] = {
 
 
 
+/**
+ * 合并新模块列表到已有模块列表
+ * 输入: data_ctx - 指向模块列表指针的指针, new_value - 新的模块列表
+ * 返回: 1 表示成功
+ */
 int config_load_modules_add(void* data_ctx, void* new_value) {
     vector_t* new_modules = (vector_t*)new_value;
     vector_t* old_modules = *(vector_t**)data_ctx;
     if (old_modules == NULL) {
-        *(vector_t**)data_ctx = new_modules;
+        *(vector_t**)data_ctx = new_modules;   /* 如果原列表为空，直接赋值 */
         return 1;
     }
-    
+
+    /* 将新模块列表中的所有条目合并到原列表 */
     for (int i = 0; i < vector_size(new_modules); i++) {
         vector_push(old_modules, vector_pop(new_modules));
     }
-    vector_delete(new_modules);
+    vector_delete(new_modules);   /* 释放临时的新模块列表 */
     return 1;
 }
 
+/**
+ * 获取模块列表指针
+ * 输入: data_ctx - 指向模块列表指针的指针
+ * 返回: 模块列表指针
+ */
 void* config_load_modules_get(void* data_ctx) {
     return (void*)*(vector_t**)data_ctx;
 }
 
+/**
+ * 从命令行/配置文件解析单个模块条目
+ * 输入: rule - 配置规则, argv - 参数数组, argc - 参数个数, error - 错误信息输出
+ * 返回: 包含单个模块条目的 vector_t 指针
+ */
 void* config_load_modules_load(config_rule_t* rule, char** argv, int argc, char** error) {
    vector_t* modules = vector_new();
    LATTE_LIB_LOG(LOG_INFO, "load module %s", argv[0]);
+   /* 创建模块条目：模块路径 + 参数列表 */
    module_entry_t* entry = module_entry_new(sds_new(argv[0]), argc -1, argv + 1);
    vector_push(modules, entry);
    return (void*)modules;
 }
 
+/**
+ * 模块配置比较回调函数（未实现）
+ * 输入: rule - 配置规则, data_ctx - 当前数据上下文, new_value - 新值
+ * 返回: 比较结果（目前直接断言失败）
+ */
 int config_load_modules_cmp(config_rule_t* rule, void* data_ctx, void* new_value) {
     latte_assert_with_info(0, "config_load_modules_cmp not implemented");
     return 1;
 }
 
+/**
+ * 模块配置有效性验证回调函数（未实现）
+ * 输入: data_ctx - 当前数据上下文, new_value - 新值
+ * 返回: 验证结果（目前直接断言失败）
+ */
 int config_load_modules_is_valid(void* data_ctx, void* new_value) {
     latte_assert_with_info(0, "config_load_modules_is_valid not implemented");
     // vector_t* modules = *(vector_t**)data_ctx;
@@ -82,19 +110,35 @@ int config_load_modules_is_valid(void* data_ctx, void* new_value) {
     return 1;
 }
 
+/**
+ * 模块配置转换为字符串回调函数（未实现）
+ * 输入: data_ctx - 配置规则上下文, key - 配置键, value - 配置值
+ * 返回: sds 字符串（目前直接断言失败）
+ */
 sds config_load_modules_to_sds(config_rule_t* data_ctx, char* key, void* value) {
     latte_assert_with_info(0, "config_load_modules_to_sds not implemented");
     return NULL;
 }
 
+/**
+ * 模块条目释放回调函数
+ * 输入: data - 模块条目指针
+ * 返回: 无
+ */
 void config_module_entry_delete(void* data) {
     module_entry_t* entry = (module_entry_t*)data;
     module_entry_delete(entry);
 }   
 
 
-server_config_t* server_config_new(config_manager_t* config_manager) { 
+/**
+ * 创建服务器配置并注册所有配置项规则
+ * 输入: config_manager - 配置管理器实例
+ * 返回: 初始化完成的服务器配置结构体指针
+ */
+server_config_t* server_config_new(config_manager_t* config_manager) {
     server_config_t* config = zmalloc(sizeof(server_config_t));
+    /* 初始化所有配置字段的默认值 */
     config->bind = NULL;
     config->logfile = NULL;
     config->ldb_file = NULL;
@@ -110,17 +154,19 @@ server_config_t* server_config_new(config_manager_t* config_manager) {
     config->slowlog_log_slower_than = 10000;
     config->slowlog_max_len = 128;
 
+    /* 注册各种配置项规则到配置管理器 */
     config_add_rule(config_manager, "bind", config_rule_new_sds_array_rule(0, &config->bind, NULL, -1, sds_new("* -::*")));
     config_add_rule(config_manager, "port", config_rule_new_numeric_rule(0, &config->port, 0, 65535, NULL, DEFAULT_PORT));
     config_add_rule(config_manager, "tcp-backlog", config_rule_new_numeric_rule(0, &config->tcp_backlog, 0, 65535, NULL, DEFAULT_TCP_BACKLOG));
     config_add_rule(config_manager, "log-file", config_rule_new_sds_rule(0, &config->logfile, NULL, NULL));
     config_add_rule(config_manager, "ldb-file", config_rule_new_sds_rule(0, &config->ldb_file, NULL, sds_new("dump.ldb")));
-    config_add_rule(config_manager, "log-level", config_rule_new_enum_rule(0, &config->log_level, log_level_enum_list, NULL, "info"));    
+    config_add_rule(config_manager, "log-level", config_rule_new_enum_rule(0, &config->log_level, log_level_enum_list, NULL, "info"));
     config_add_rule(config_manager, "max-clients", config_rule_new_numeric_rule(0, &config->max_clients, 0, 65535, NULL, 10000));
     config_add_rule(config_manager, "use-async-io", config_rule_new_numeric_rule(0, &config->use_async_io, 0, 1, NULL, false));
     config_add_rule(config_manager, "event-loop-size", config_rule_new_numeric_rule(0, &config->event_loop_size, 0, 65535, NULL, 1024));
     config_add_rule(config_manager, "hz", config_rule_new_numeric_rule(0, &config->hz, 0, 65535, NULL, 10));
     config_add_rule(config_manager, "db-num", config_rule_new_numeric_rule(0, &config->db_num, 0, 65535, NULL, 16));
+    /* 注册模块加载规则，使用自定义回调函数处理模块列表 */
     config_add_rule(config_manager, "load-module", config_rule_new(
         CONFIG_FLAG_DISABLE_SAVE,
         &config->load_modules,
@@ -136,14 +182,21 @@ server_config_t* server_config_new(config_manager_t* config_manager) {
         config_module_entry_delete,
         NULL
     ));
-    config_add_rule(config_manager, "slowlog-log-slower-than", 
+    /* 注册慢查询相关配置规则 */
+    config_add_rule(config_manager, "slowlog-log-slower-than",
         config_rule_new_numeric_rule(0, &config->slowlog_log_slower_than, 0, INT64_MAX, NULL, 10000));
-    config_add_rule(config_manager, "slowlog-max-len", 
+    config_add_rule(config_manager, "slowlog-max-len",
         config_rule_new_numeric_rule(0, &config->slowlog_max_len, 0, INT64_MAX, NULL, 128));
+    /* 确保所有14个配置项都初始化成功 */
     latte_assert_with_info(config_init_all_data(config_manager) == 14, "config_init_all_data failed");
     return config;
 }
 
+/**
+ * 释放配置结构体
+ * 输入: config - 待释放的配置结构体指针
+ * 返回: 无
+ */
 void server_config_delete(server_config_t* config) {
     zfree(config);
 }
