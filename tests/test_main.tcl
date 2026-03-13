@@ -19,6 +19,7 @@ set ::all_tests {
     commands/ping
     commands/string
     commands/expire
+    commands/save
 }
 
 

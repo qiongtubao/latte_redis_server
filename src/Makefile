@@ -8,7 +8,7 @@ REDIS_MALLOC=libc
 
 
 DEBUG=-g
-LIB_MODUELS="zset stream sds dict config list server io object lzf rax debug thread_single_object async_io ae utils"
+LIB_MODUELS="zset stream sds dict config list server io object lzf rax debug thread_single_object async_io ae utils odb error"
 
 
 #LIB_MODUELS="error sds dict ae config list server zset stream  lzf object debug"
@@ -64,11 +64,12 @@ $(LATTE_LIB_WORKSPACE)/out/lib/liblatte.a:
 	$(REDIS_CC) $(DEBUG) -MMD -o $@ -c $< -I$(LATTE_LIB_WORKSPACE)/out/include 
 
 MAC_M1_CFLAGS=-fprofile-arcs -ftest-coverage
-REDIS_OBJS=redis/server.o redis/crons.o redis/client.o redis/client_reply.o redis/module.o redis/db.o redis/slowlog.o
-COMMANDS_OBJS=commands/command_manager.o commands/module.o commands/info.o
+REDIS_OBJS=redis/server.o redis/backlog.o redis/crons.o redis/client.o redis/client_reply.o redis/module.o redis/db.o redis/slowlog.o redis/object_string_register.o redis/replication.o
+COMMANDS_OBJS=commands/command_manager.o commands/module.o commands/info.o commands/expire.o commands/ping.o commands/quit.o commands/save.o commands/slaveof.o
 EXPERIMENT_OBJS=experiment/metric.o
+OBJECT_OBJS=object/string.o
 
-OBJS=version.o main.o help.o  env.o redis_config/config.o $(REDIS_OBJS) $(COMMANDS_OBJS) $(EXPERIMENT_OBJS) shared/shared.o
+OBJS=version.o main.o help.o  env.o redis_config/config.o $(REDIS_OBJS) $(COMMANDS_OBJS) $(EXPERIMENT_OBJS) $(OBJECT_OBJS) shared/shared.o
 
 #OBJS=version.o main.o help.o  env.o redis_server/config.o redis.o redis_server/crons.o redis_server/client.o
 

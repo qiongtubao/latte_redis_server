@@ -103,31 +103,87 @@ proc latte_server_is_up {host port retrynum} {
     return 0
 }
 
-# 启动 Latte Redis 服务端（通用方法）
-# overrides: 可选，如 {port 6379} 指定端口，不传则自动分配
-# 返回 dict: pid, host, port；并将 pid 加入 ::pids 便于 cleanup 时统一杀进程
-proc start_latte_redis_server {{overrides {}}} {
+# 启动 Latte Redis 服务端（统一方法）
+# 参数：
+#   - overrides: 可选，如 {port 6379} 指定端口，不传则自动分配
+#   - module_paths: 可选，模块路径列表，空列表表示不加载模块，默认 {}
+#   - use_ping: 可选，是否使用 ping 检测服务器就绪，默认 true
+#   - wait_after_ping: 可选，ping 检测后等待时间（毫秒），默认 400
+#   - wait_ms: 可选，不使用 ping 时直接等待的时间（毫秒），默认 1500
+# 返回 dict: pid, host, port, stdout_file, stderr_file, log_file, workdir, config_file(如果加载了模块)
+proc start_latte_redis_server {{overrides {}} {module_paths {}} {use_ping 1} {wait_after_ping 400} {wait_ms 1500}} {
     set host $::host
     if {[dict exists $overrides port]} {
         set port [dict get $overrides port]
     } else {
         set port [find_available_port $::baseport 100]
     }
-    set cmd [list $::latte_server_path --port $port]
-    set res [exec {*}$cmd &]
+    
+    # 创建服务器实例的工作目录
+    set cfgdir "tests/tmp"
+    if {![file exists $cfgdir]} { file mkdir $cfgdir }
+    set workdir [file join $cfgdir "server_[pid]_[clock milliseconds]"]
+    file mkdir $workdir
+    
+    # 设置配置文件路径（如果需要加载模块）
+    set config_file ""
+    if {[llength $module_paths] > 0} {
+        set config_file [file join $workdir "modules.conf"]
+        set fd [open $config_file w]
+        foreach path $module_paths {
+            puts $fd "load-module $path"
+        }
+        close $fd
+    }
+    
+    # 设置输出文件路径
+    set stdout_file [file join $workdir "stdout.log"]
+    set stderr_file [file join $workdir "stderr.log"]
+    set log_file [file join $workdir "server.log"]
+    
+    # 构建命令，添加日志文件参数、ldb 路径和 DEBUG 日志级别（使用绝对路径保证 ldb 一定在 workdir 下）
+    set ldb_file [file normalize [file join $workdir "dump.ldb"]]
+    set cmd [list $::latte_server_path]
+    if {$config_file ne ""} {
+        lappend cmd $config_file
+    }
+    lappend cmd --port $port --log-file $log_file --ldb-file $ldb_file --log-level debug
+    
+    # 启动服务器并重定向输出
+    set res [exec {*}$cmd > $stdout_file 2> $stderr_file &]
     set pid [lindex $res 0]
     lappend ::pids $pid
 
-    set retrynum 100
-    if {![latte_server_is_up $host $port $retrynum]} {
-        stop_instance $pid
-        set ::pids [lsearch -all -inline -not -exact $::pids $pid]
-        error "start_latte_redis_server: server did not become ready on ${host}:${port} (pid $pid)"
+    # 根据 use_ping 参数决定如何检测服务器就绪
+    if {$use_ping} {
+        set retrynum 100
+        if {![latte_server_is_up $host $port $retrynum]} {
+            stop_instance $pid
+            set ::pids [lsearch -all -inline -not -exact $::pids $pid]
+            if {$config_file ne ""} {
+                catch {file delete $config_file}
+            }
+            error "start_latte_redis_server: server did not become ready on ${host}:${port} (pid $pid)"
+        }
+        # 等待 ping 连接关闭后 server 稳定，再交给调用方建连，减少 connection closed
+        after $wait_after_ping
+        update
+    } else {
+        # 不使用 ping，直接等待指定时间
+        after $wait_ms
+        update
     }
 
     dict set srv pid $pid
     dict set srv host $host
     dict set srv port $port
+    dict set srv stdout_file $stdout_file
+    dict set srv stderr_file $stderr_file
+    dict set srv log_file $log_file
+    dict set srv workdir $workdir
+    if {$config_file ne ""} {
+        dict set srv config_file $config_file
+    }
     return $srv
 }
 
@@ -139,78 +195,27 @@ proc kill_latte_server {srv} {
     if {[dict exists $srv config_file]} {
         catch {file delete [dict get $srv config_file]}
     }
+    # 注意：不删除 workdir，保留日志文件供调试
 }
 
 # 启动时加载 modules 目录下生成的 .so（通过临时配置文件）
 # module_paths: 可选，.so 路径列表，默认 [./src/modules/latte.so]
 # 返回与 start_latte_redis_server 相同的 dict，多一个 config_file 供 kill 时删除
+# 注意：此函数为兼容性包装器，实际调用统一的 start_latte_redis_server
 proc start_latte_redis_server_with_modules {{module_paths {}}} {
-    set host $::host
     if {[llength $module_paths] == 0} {
         set module_paths [list [file normalize ./src/modules/latte.so]]
     }
-    set port [find_available_port $::baseport 100]
-
-    set cfgdir "tests/tmp"
-    if {![file exists $cfgdir]} { file mkdir $cfgdir }
-    set config_file [file join $cfgdir "modules_[pid].conf"]
-    set fd [open $config_file w]
-    foreach path $module_paths {
-        puts $fd "load-module $path"
-    }
-    close $fd
-
-    set cmd [list $::latte_server_path $config_file --port $port]
-    set res [exec {*}$cmd &]
-    set pid [lindex $res 0]
-    lappend ::pids $pid
-
-    set retrynum 100
-    if {![latte_server_is_up $host $port $retrynum]} {
-        stop_instance $pid
-        set ::pids [lsearch -all -inline -not -exact $::pids $pid]
-        catch {file delete $config_file}
-        error "start_latte_redis_server_with_modules: server did not become ready on ${host}:${port} (pid $pid)"
-    }
-    # 等待 ping 连接关闭后 server 稳定，再交给调用方建连，减少 connection closed
-    after 400
-    update
-
-    dict set srv pid $pid
-    dict set srv host $host
-    dict set srv port $port
-    dict set srv config_file $config_file
-    return $srv
+    return [start_latte_redis_server {} $module_paths 1 400 1500]
 }
 
 # 启动带 module 的 server，仅固定等待不 ping，保证测试时只有一条连接（避免 ping 连接干扰导致 connection closed）
+# module_paths: 可选，.so 路径列表，默认 [./src/modules/latte.so]
+# wait_ms: 可选，等待时间（毫秒），默认 1500
+# 注意：此函数为兼容性包装器，实际调用统一的 start_latte_redis_server
 proc start_latte_redis_server_with_modules_no_ping {{module_paths {}} {wait_ms 1500}} {
-    set host $::host
     if {[llength $module_paths] == 0} {
         set module_paths [list [file normalize ./src/modules/latte.so]]
     }
-    set port [find_available_port $::baseport 100]
-
-    set cfgdir "tests/tmp"
-    if {![file exists $cfgdir]} { file mkdir $cfgdir }
-    set config_file [file join $cfgdir "modules_[pid].conf"]
-    set fd [open $config_file w]
-    foreach path $module_paths {
-        puts $fd "load-module $path"
-    }
-    close $fd
-
-    set cmd [list $::latte_server_path $config_file --port $port]
-    set res [exec {*}$cmd &]
-    set pid [lindex $res 0]
-    lappend ::pids $pid
-
-    after $wait_ms
-    update
-
-    dict set srv pid $pid
-    dict set srv host $host
-    dict set srv port $port
-    dict set srv config_file $config_file
-    return $srv
+    return [start_latte_redis_server {} $module_paths 0 400 $wait_ms]
 }
