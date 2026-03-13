@@ -25,9 +25,13 @@ int get_client_type(redis_client_t *c) {
  * 输入: rc - Redis客户端指针, flags - 调用标志
  * 功能: 1. 调用命令处理函数执行命令
  *       2. 将命令名和参数写入服务器 backlog（命令名 + 参数，空格分隔）
+ *       3. 若命令来自 master 复制流（CLIENT_MASTER 标志），不写入 backlog，避免循环传播
  */
 void call(redis_client_t* rc, int flags) {
     rc->cmd->proc(rc);
+
+    /* 来自 master 的增量复制命令不写入 backlog，避免 slave 再次传播 */
+    if (rc->flag & CLIENT_MASTER) return;
 
     /* 命令执行后将数据写入 server backlog（命令名 + 参数，空格分隔） */
     redis_server_t* server = (redis_server_t*)rc->client.server;

@@ -1,5 +1,6 @@
 
 #include "crons.h"
+#include "replication.h"
 #include "utils/utils.h"
 #include "time/localtime.h"
 
@@ -46,6 +47,16 @@ void expire_metric_cron(void* server) {
 }
 
 /**
+ * 主从复制增量传播定时任务
+ * 每 10ms 执行一次，向所有已连接的 slave 推送 backlog 中的新命令
+ * 输入: server - Redis 服务器实例指针（void* 类型）
+ * 返回: 无
+ */
+void replication_propagate_cron(void* server) {
+    replication_propagate_to_slaves((redis_server_t*)server);
+}
+
+/**
  * 注册所有 Redis 服务器定时任务
  * updateCacheTime: 每 1ms 执行一次，更新缓存时间
  * updateMetric: 每 100ms 执行一次，更新指标统计
@@ -58,6 +69,9 @@ int init_redis_server_crons(redis_server_t* redis_server) {
     cron_manager_add_cron(redis_server->server.cron_manager, updateCacheTimeCron);
     cron_t* updateMetricCron = cron_new(update_metric_cron, 100);
     cron_manager_add_cron(redis_server->server.cron_manager, updateMetricCron);
+    /* 主从复制增量传播：每 10ms 推送一次 backlog 给 slave */
+    cron_t* replPropCron = cron_new(replication_propagate_cron, 10);
+    cron_manager_add_cron(redis_server->server.cron_manager, replPropCron);
     // cron_t* activeExpireCycleCron = cron_new(expire_metric_cron, 1000);
     // cron_manager_add_cron(redis_server->server.cron_manager, activeExpireCycleCron);
     return 0;

@@ -198,6 +198,8 @@ void ping_command(redis_client_t* c);
 void quit_command(redis_client_t* c);
 void save_command(redis_client_t* c);
 void load_command(redis_client_t* c);
+void slaveof_command(redis_client_t* c);
+void sync_command(redis_client_t* c);
 
 /*  ==================== command table ==================== */
 
@@ -249,6 +251,16 @@ struct redis_command_t redis_command_table[] = {
     {
         "load", load_command, -1,       /* LOAD命令：可变参数（load 或 load filename） */
         "admin",                        /* 管理员权限 */
+        0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
+    },
+    {
+        "slaveof", slaveof_command, 3,  /* SLAVEOF命令：3个参数（slaveof host port 或 slaveof no one） */
+        "admin",                        /* 管理员权限 */
+        0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
+    },
+    {
+        "sync", sync_command, 1,        /* SYNC命令：1个参数（slave握手时发送，master执行全量同步） */
+        "admin no-monitor",             /* 管理员权限，不记录到 MONITOR */
         0, NULL, NULL, SWAP_NOP, 0, 0, 0, 0, 0, 0, 0
     }
 };

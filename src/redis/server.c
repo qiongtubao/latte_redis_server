@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "server.h"
 #include "client.h"
+#include "replication.h"
 #include "dict/dict_plugins.h"
 #include "debug/latte_debug.h"
 #include "utils/utils.h"
@@ -107,6 +108,7 @@ void init_redis_server(struct redis_server_t* rs) {
     rs->metric = metric_new(16);                // 初始化性能指标统计（16个槽位）
     rs->metric_stat_numcommands = 0;            // 初始化命令统计数量
     module_register_core_api(rs);               // 注册核心模块API
+    replication_init(rs);                       // 初始化主从复制模块字段
 } 
 
 

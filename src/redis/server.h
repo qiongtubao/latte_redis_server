@@ -10,6 +10,19 @@
 #include "backlog.h"
 #include "slowlog.h"
 #include "../experiment/metric.h"
+#include <stdint.h>
+
+/* ========== 主从复制状态枚举 ========== */
+typedef enum {
+    REPL_STATE_NONE = 0,       /* 未开启复制（普通主节点状态） */
+    REPL_STATE_CONNECT,        /* 需要连接到 master，等待触发 */
+    REPL_STATE_CONNECTING,     /* TCP 连接中（非阻塞连接进行中） */
+    REPL_STATE_SEND_PING,      /* 连接建立后，发送 PING 测试连接 */
+    REPL_STATE_WAIT_PONG,      /* 等待 master 的 PONG 回复 */
+    REPL_STATE_SEND_PSYNC,     /* 发送 PSYNC/FULLRESYNC 请求全量同步 */
+    REPL_STATE_TRANSFER,       /* 正在接收 master 的全量数据（LDB 内容） */
+    REPL_STATE_CONNECTED,      /* 全量同步完成，已连接，进行增量复制 */
+} repl_state_t;
 
 /* 服务器内存淘汰策略标志位。使用标志位集合而不是简单的增量数字，
  * 以便更快速地测试多个策略的公共属性。 */
@@ -58,6 +71,20 @@ typedef struct redis_server_t {
     metric_t* metric;                         // 性能指标统计
     long long metric_stat_numcommands;        // 命令执行统计数量
 
+    /* ========== 主从复制字段 ========== */
+    /** slave 侧：当前节点作为 slave 时的配置与状态 */
+    sds master_host;               /* master 的主机地址（NULL 表示未配置 slave 模式） */
+    int master_port;               /* master 的端口号 */
+    repl_state_t repl_state;       /* 当前复制状态（见 repl_state_t 枚举） */
+    connection* repl_conn;         /* 与 master 建立的 TCP 连接（slave 侧） */
+    sds repl_transfer_buf;         /* 接收全量数据时的缓冲区（LDB 内容） */
+    long long repl_master_initial_offset; /* 全量同步时 master 的初始 offset */
+    long long repl_read_offset;    /* slave 已读取并处理的 master 数据偏移量 */
+
+    /** master 侧：当前节点作为 master 时管理 slave 列表 */
+    list_t* slaves;                /* 已连接的 slave 客户端列表（CLIENT_SLAVE 标志的客户端） */
+    long long repl_offset;         /* master 当前复制数据偏移量（每次写命令后递增） */
+
     // /** expire */
     // eb* expires;                           // 过期键处理（暂未实现）
 } redis_server_t;
@@ -97,7 +124,42 @@ int init_redis_server_dbs(redis_server_t* redis_server);
  */
 int init_redis_modules(redis_server_t* server);
 
+/* ========== 主从复制函数声明 ========== */
 
+/**
+ * 输入: server - 服务器实例
+ * 输出/返回: 无
+ * 功能: 初始化复制模块相关字段（在 init_redis_server 中调用）
+ */
+void replication_init(redis_server_t* server);
+
+/**
+ * 输入: server - 服务器实例, host - master 主机地址, port - master 端口
+ * 输出/返回: 0 成功，-1 失败
+ * 功能: slave 侧：开始连接到 master，触发 PING → PSYNC → 全量同步流程
+ */
+int replication_start_connect(redis_server_t* server, const char* host, int port);
+
+/**
+ * 输入: server - 服务器实例
+ * 输出/返回: 无
+ * 功能: slave 侧：断开与 master 的连接，停止复制，恢复为普通主节点
+ */
+void replication_stop(redis_server_t* server);
+
+/**
+ * 输入: server - 服务器实例, slave_client - 请求全量同步的 slave 客户端
+ * 输出/返回: 无
+ * 功能: master 侧：对请求 SYNC 的 slave 客户端执行全量数据序列化并发送
+ */
+void replication_full_sync_to_slave(redis_server_t* server, struct redis_client_t* slave_client);
+
+/**
+ * 输入: server - 服务器实例
+ * 输出/返回: 无
+ * 功能: master 侧：定时向所有已连接的 slave 推送 backlog 中的增量命令
+ */
+void replication_propagate_to_slaves(redis_server_t* server);
 
 /** 模块命令处理函数 */
 
